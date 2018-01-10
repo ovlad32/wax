@@ -1,0 +1,32 @@
+{
+  "astra-h2-host": "localhost",
+  "astra-h2-port": "5435",
+  "astra-h2-login": "edm",
+  "astra-h2-password": "edmedm",
+  "astra-h2-database": "./edm",
+  "astra-h2-database2": "edm",
+  "astra-dump-path--": "C:/home/data.151/",
+  "astra-dump-path": "C:/home/data.253.4/",
+  "astra-dump-path-": "C:/home/data.CK3/",
+  "astra-data-gzip": true,
+  "astra-field-byte-separator": 31,
+  "astra-column-byte-separator2": 7,
+  "astra-line-byte-separator": 10,
+  "bitset-path": "C:/home/data.253.4/BINDATA/",
+  "bitset-path-": "C:/home/data.CK3/BINDATA/",
+  "kv-store-path": "./BINDATA/",
+  "astra-reader-buffer-size": 40960,
+  "table-workers": 3,
+  "category-worker-per-table": 10,
+  "category-data-channel-size": 30,
+  "raw-data-channel-size": 300,
+  "speed-tick-time-sec": 60,
+  "memory-usage-tick-time-sec": 0,
+  "build-binary-dump": false,
+  "emit-hash-data": true,
+  "emit-raw-data": true,
+  "log-base-file": "./log",
+  "log-base-file-keep-day": 1
+}
+
+

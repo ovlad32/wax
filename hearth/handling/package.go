@@ -1,0 +1,3 @@
+package handling
+
+var packageName = ""

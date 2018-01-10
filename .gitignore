@@ -1,0 +1,13 @@
+data/
+log/
+DBS/
+BINDATA/
+src/github.com/
+src/golang.org/
+*.exe
+*.db
+*.lock
+.idea/
+*.iml
+gopath.cmd
+*.out

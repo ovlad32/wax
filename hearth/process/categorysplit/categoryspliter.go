@@ -202,3 +202,4 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 	}
 	return
 }
+

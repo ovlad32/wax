@@ -115,6 +115,13 @@ func (c ColumnInfoType) GoString() (result string) {
 	return fmt.Sprintf("ColumnInfo[id:%v,name:%v]", c.Id.Value(), c.ColumnName.Value())
 }
 
+
+func (c ColumnInfoListType) ColumnList() (ColumnInfoListType){
+	return c
+}
+
+
+
 func (c *ColumnInfoType) ResetBitset(contentType BitsetContentType) {
 	if c.ContentFeatures != nil {
 		for _, v := range c.ContentFeatures {

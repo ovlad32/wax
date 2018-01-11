@@ -1,9 +1,8 @@
-package process
+package categorysplit
 
 import (
 	"github.com/ovlad32/wax/hearth/dto"
 	"github.com/ovlad32/wax/hearth/process/dump"
-	"github.com/goinggo/tracelog"
 	"context"
 	"fmt"
 	"io"
@@ -11,11 +10,26 @@ import (
 	"os"
 	"io/ioutil"
 	"bytes"
+	"github.com/ovlad32/wax/hearth/handling"
 )
 
-type SplitConfigType struct {
+type CategorySplitConfigType struct {
 	DumpReaderConfig *dump.DumperConfigType
-    PathToSliceDirectory string
+	PathToSliceDirectory string
+	log handling.Logger
+}
+
+
+type CategorySplitterType struct {
+	config CategorySplitConfigType
+}
+
+func NewCategorySpliter(cfg *CategorySplitConfigType) (splitter *CategorySplitterType,err error) {
+	//TODO: fill me
+	splitter = &CategorySplitterType{
+
+	}
+	return
 
 }
 
@@ -86,8 +100,7 @@ func (out *outWriterType) Close() (err error) {
 }
 
 
-func (spliter)Split(ctx context.Context,  categoryColumnListInterface dto.ColumnListInterface) (err error){
-	funcName := ""
+func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile string, categoryColumnListInterface dto.ColumnListInterface) (err error){
 	var targetTable *dto.TableInfoType
 
 	holder := make(map[string]*outWriterType)
@@ -105,7 +118,6 @@ func (spliter)Split(ctx context.Context,  categoryColumnListInterface dto.Column
 		return err
 	}
 
-	targetTable := categoryColumns[0].TableInfo
 	targetTableColumns:= targetTable.ColumnList()
 	targetTableColumnCount := len(targetTableColumns)
 
@@ -113,7 +125,7 @@ func (spliter)Split(ctx context.Context,  categoryColumnListInterface dto.Column
 
 	categoryPositions, err := targetTable.ColumnPositionFlags(categoryColumns,dto.ColumnPositionOn)
 
-	dumperConfig := conf.DumpReaderConfig
+	dumperConfig := splitter.config.DumpReaderConfig
 
 	lastCategoryRowData := make(categoryColumnDataType,len(categoryColumns))
 	var currentOutWriter *outWriterType;
@@ -150,7 +162,7 @@ func (spliter)Split(ctx context.Context,  categoryColumnListInterface dto.Column
 			found := false
 			key := categoryRowData.String()
 			if currentOutWriter, found = holder[key]; !found {
-				currentOutWriter, err = newOutWriter(conf.PathToSliceDirectory)
+				currentOutWriter, err = newOutWriter(splitter.config.PathToSliceDirectory)
 				holder[key] = currentOutWriter
 			} else {
 
@@ -172,10 +184,10 @@ func (spliter)Split(ctx context.Context,  categoryColumnListInterface dto.Column
 	}
 	linesRead, err := dumper.ReadFromFile(
 		ctx,
-		,
+		pathToFile,
 		processRowContent,
 	)
-
+	_ = linesRead
 	//zipWriter.Flush()
 
 	for _,h := range holder{
@@ -183,10 +195,10 @@ func (spliter)Split(ctx context.Context,  categoryColumnListInterface dto.Column
 	}
 
 	if err != nil {
-		tracelog.Errorf(err, packageName, funcName, "Error while reading table %v in line #%v ", targetTable, linesRead)
+//		tracelog.Errorf(err, packageName, funcName, "Error while reading table %v in line #%v ", targetTable, linesRead)
 		return
 	} else {
-		tracelog.Info(packageName, funcName, "Table %v processed. %v lines have been read", targetTable, linesRead)
+		//tracelog.Info(packageName, funcName, "Table %v processed. %v lines have been read", targetTable, linesRead)
 	}
 	return
 }

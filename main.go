@@ -14,6 +14,8 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"github.com/ovlad32/wax/hearth/process/categorysplit"
+	"path"
 )
 
 var packageName = "main"
@@ -96,13 +98,16 @@ func test1() {
 		log.Fatal(err)
 	}*/
 
-
-	err = process.Split(
+	splitter,err  :=categorysplit.NewCategorySpliter(&categorysplit.CategorySplitConfigType{
+		DumpReaderConfig:*hearth.AdaptDataReaderConfig(config),
+		PathToSliceDirectory: config.BitsetPath,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = splitter.SplitFile(
 		ctx,
-		&index.SplitConfigType{
-			DumpReaderConfig:*hearth.AdaptDataReaderConfig(config),
-			PathToSliceDirectory: config.BitsetPath,
-			},
+		path.Join(config.AstraDumpPath,table.PathToFile.String()),
 		dto.ColumnInfoListType{table.Columns[7]},
 	)
 	if err != nil {

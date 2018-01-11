@@ -39,6 +39,7 @@ type DumperType struct {
 
 func NewDumpReader(cfg *DumperConfigType) (dumper *DumperType,err error){
 	if cfg == nil {
+		//TODO: fill me
 
 	}
 

@@ -7,7 +7,7 @@ import (
 	"github.com/ovlad32/wax/hearth"
 	"github.com/ovlad32/wax/hearth/dto"
 	"github.com/ovlad32/wax/hearth/handling"
-	"github.com/ovlad32/wax/hearth/process"
+	index "github.com/ovlad32/wax/hearth/process/index"
 	"github.com/ovlad32/wax/hearth/repository"
 	"log"
 	"math"
@@ -69,9 +69,9 @@ func test1() {
 		log.Fatal(err)
 	}
 
-	indexer, err := process.NewIndexer(
-		&process.BitsetIndexConfigType{
-			DumpReaderConfig: *hearth.AdaptDataReaderConfig(config),
+	indexer, err := index.NewIndexer(
+		&index.BitsetIndexConfigType{
+			DumperConfig: *hearth.AdaptDataReaderConfig(config),
 			BitsetPath:       config.BitsetPath,
 		},
 	)
@@ -86,7 +86,7 @@ func test1() {
 	}
 	_ = indexer
 	/*
-	err = indexer.BuildBitsets(
+	err = index.BuildBitsets(
 		ctx,
 		dto.NewBitSetContents(dto.HashContent),
 		table,
@@ -99,7 +99,7 @@ func test1() {
 
 	err = process.Split(
 		ctx,
-		&process.SplitConfigType{
+		&index.SplitConfigType{
 			DumpReaderConfig:*hearth.AdaptDataReaderConfig(config),
 			PathToSliceDirectory: config.BitsetPath,
 			},

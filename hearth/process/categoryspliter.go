@@ -2,7 +2,7 @@ package process
 
 import (
 	"github.com/ovlad32/wax/hearth/dto"
-	"github.com/ovlad32/wax/hearth/handling"
+	"github.com/ovlad32/wax/hearth/process/dump"
 	"github.com/goinggo/tracelog"
 	"context"
 	"fmt"
@@ -13,8 +13,8 @@ import (
 	"bytes"
 )
 
-type  SplitConfigType struct {
-	DumpReaderConfig handling.DumpReaderConfigType
+type SplitConfigType struct {
+	DumpReaderConfig *dump.DumperConfigType
     PathToSliceDirectory string
 
 }
@@ -86,23 +86,34 @@ func (out *outWriterType) Close() (err error) {
 }
 
 
-func Split(ctx context.Context, conf *SplitConfigType,categoryColumns dto.ColumnInfoListType) (err error){
+func (spliter)Split(ctx context.Context,  categoryColumnListInterface dto.ColumnListInterface) (err error){
 	funcName := ""
 	var targetTable *dto.TableInfoType
-	if  len(categoryColumns) == 0 {
 
-	}
 	holder := make(map[string]*outWriterType)
-//	var zipWriter *gzip.Writer
+
+
+
+	if categoryColumnListInterface == nil {
+		err = fmt.Errorf("parameter 'categoryColumnList' is not defined")
+		return err
+	}
+
+	categoryColumns := categoryColumnListInterface.ColumnList();
+	if len(categoryColumns) == 0 {
+		err = fmt.Errorf("parameter 'categoryColumnList' is empty")
+		return err
+	}
+
+	targetTable := categoryColumns[0].TableInfo
+	targetTableColumns:= targetTable.ColumnList()
+	targetTableColumnCount := len(targetTableColumns)
 
 	targetTable = categoryColumns[0].TableInfo
 
-	categoryPositions, err := targetTable.ColumnPositionFlags(categoryColumns,true)
+	categoryPositions, err := targetTable.ColumnPositionFlags(categoryColumns,dto.ColumnPositionOn)
 
-	currentConfig := conf.DumpReaderConfig
-	currentConfig.TableName = targetTable.String()
-	currentConfig.TableColumnCount = len(targetTable.Columns)
-	currentConfig.TableDumpFileName = targetTable.PathToFile.Value()
+	dumperConfig := conf.DumpReaderConfig
 
 	lastCategoryRowData := make(categoryColumnDataType,len(categoryColumns))
 	var currentOutWriter *outWriterType;
@@ -113,13 +124,19 @@ func Split(ctx context.Context, conf *SplitConfigType,categoryColumns dto.Column
 		ctx context.Context,
 		lineNumber,
 		DataPosition uint64,
-		columnData [][]byte,
+		rowFields [][]byte,
 		original []byte,
-	) (result handling.DumpReaderActionType, err error) {
+	) (err error) {
 		categoryNum := 0
+		if len(rowFields) != targetTableColumnCount  {
+			err = fmt.Errorf("Column count mismach given: %v, expected %v",len(rowFields),targetTableColumnCount)
+			return
+		}
+
+
 		for columnNumber  := range targetTable.Columns {
 			if categoryPositions[columnNumber] {
-				categoryRowData[categoryNum] = columnData[columnNumber]
+				categoryRowData[categoryNum] = rowFields[columnNumber]
 				categoryNum++
 			}
 		}
@@ -149,10 +166,13 @@ func Split(ctx context.Context, conf *SplitConfigType,categoryColumns dto.Column
 		}
 		return
 	}
-
-		_, linesRead, err := handling.ReadAstraDump(
+	dumper, err  := dump.NewDumpReader(dumperConfig)
+	if err != nil {
+		return
+	}
+	linesRead, err := dumper.ReadFromFile(
 		ctx,
-		&currentConfig,
+		,
 		processRowContent,
 	)
 

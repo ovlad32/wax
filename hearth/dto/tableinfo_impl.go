@@ -24,11 +24,16 @@ func (t *TableInfoType) Reference() *TableInfoType {
 	return t
 }
 
+type ColumnPositionBitType bool
+const (
+	ColumnPositionOn = true
+	ColumnPositionOff ColumnPositionBitType = false
+)
 
-func (t *TableInfoType) ColumnPositionFlags(columnList []*ColumnInfoType,flag bool) (result []bool, err error) {
+func (t *TableInfoType) ColumnPositionFlags(columnList []*ColumnInfoType,flag ColumnPositionBitType) (result []bool, err error) {
 	result = make([]bool,len(t.Columns))
 	for index := range result {
-		result[index] = !flag
+		result[index] = bool(!flag)
 	}
 nextColumn:
 	for _, target := range columnList {
@@ -37,7 +42,7 @@ nextColumn:
 		}
 		for position, column := range t.Columns {
 			if column.Id.Value() == target.Id.Value() {
-				result[position] = flag
+				result[position] = bool(flag)
 				continue nextColumn
 			}
 		}

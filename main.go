@@ -16,6 +16,7 @@ import (
 	"runtime/pprof"
 	"github.com/ovlad32/wax/hearth/process/categorysplit"
 	"path"
+	"fmt"
 )
 
 var packageName = "main"
@@ -65,15 +66,16 @@ func test1() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println(config)
 
-	err = repository.InitRepository(hearth.AdaptRepositoryConfig(config))
+	_, err = repository.InitRepository(hearth.AdaptRepositoryConfig(config))
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	indexer, err := index.NewIndexer(
 		&index.BitsetIndexConfigType{
-			DumperConfig: *hearth.AdaptDataReaderConfig(config),
+			DumperConfig: hearth.AdaptDataReaderConfig(config),
 			BitsetPath:       config.BitsetPath,
 		},
 	)
@@ -82,7 +84,7 @@ func test1() {
 	}
 
 	ctx := context.Background()
-	table, err := repository.TableInfoById(ctx, 111)
+	table, err := repository.TableInfoById(ctx, 100) //111:7
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -99,16 +101,17 @@ func test1() {
 	}*/
 
 	splitter,err  :=categorysplit.NewCategorySpliter(&categorysplit.CategorySplitConfigType{
-		DumpReaderConfig:*hearth.AdaptDataReaderConfig(config),
+		DumpReaderConfig: hearth.AdaptDataReaderConfig(config),
 		PathToSliceDirectory: config.BitsetPath,
 	})
 	if err != nil {
+		err = fmt.Errorf("could not do category split for table %v: %v",table,err)
 		log.Fatal(err)
 	}
 	err = splitter.SplitFile(
 		ctx,
 		path.Join(config.AstraDumpPath,table.PathToFile.String()),
-		dto.ColumnInfoListType{table.Columns[7]},
+		dto.ColumnInfoListType{table.Columns[2]},
 	)
 	if err != nil {
 		log.Fatal(err)

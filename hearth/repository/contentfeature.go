@@ -6,7 +6,7 @@ import (
 	"github.com/goinggo/tracelog"
 	"github.com/ovlad32/wax/hearth/dto"
 )
-
+/*
 func CreateContentFeatureTable(ctx context.Context) (err error){
 	conn, err := iDb.Conn(ctx)
 	if err != nil {
@@ -38,6 +38,7 @@ func CreateContentFeatureTable(ctx context.Context) (err error){
 	}
 	return
 }
+*/
 
 
 func PutContentFeature(ctx context.Context, feature *dto.ContentFeatureType) (err error) {
@@ -47,8 +48,53 @@ func PutContentFeature(ctx context.Context, feature *dto.ContentFeatureType) (er
 		tracelog.Errorf(err, packageName, funcName, "Begin transaction...")
 		return
 	}
+
+	args := MakeWhereArgsNum(20)
+	valuesString:= ""
+
+	switch currentDbType {
+	case H2:
+		valuesString = fmt.Sprintf(
+			"values(%v, '%v', %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v) ",
+			feature.Column.Id,
+			feature.Key,
+			feature.ByteLength,
+			feature.IsNumeric,
+			feature.IsNegative,
+			feature.IsInteger,
+			feature.NonNullCount,
+			feature.HashUniqueCount,
+			feature.ItemUniqueCount,
+			feature.MinStringValue.SQLString(),
+			feature.MaxStringValue.SQLString(),
+			feature.MinNumericValue,
+			feature.MaxNumericValue,
+			feature.MovingMean,
+			feature.MovingStandardDeviation,
+		)
+	default:
+
+		valuesString = "values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+		args = append(args,
+			feature.Column.Id,
+			feature.Key,
+			feature.ByteLength,
+			feature.IsNumeric,
+			feature.IsNegative,
+			feature.IsInteger,
+			feature.NonNullCount,
+			feature.HashUniqueCount,
+			feature.ItemUniqueCount,
+			feature.MinStringValue,
+			feature.MaxStringValue,
+			feature.MinNumericValue,
+			feature.MaxNumericValue,
+			feature.MovingMean,
+			feature.MovingStandardDeviation,
+		)
+	}
 	_, err = tx.ExecContext(ctx,
-		fmt.Sprintf("merge into column_datacategory_stats("+
+		"merge into column_feature_stats("+
 			" column_info_id "+
 			", key "+
 			", byte_length "+
@@ -65,26 +111,12 @@ func PutContentFeature(ctx context.Context, feature *dto.ContentFeatureType) (er
 			", moving_mean "+
 			", moving_stddev "+
 			" ) key(column_info_id, key) "+
-			" values(%v, '%v', %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v) ",
-			feature.Column.Id,
-			feature.Key,
-			feature.ByteLength,
-			feature.IsNumeric,
-			feature.IsNegative,
-			feature.IsInteger,
-			feature.NonNullCount,
-			feature.HashUniqueCount,
-			feature.ItemUniqueCount,
-			feature.MinStringValue.SQLString(),
-			feature.MaxStringValue.SQLString(),
-			feature.MinNumericValue,
-			feature.MaxNumericValue,
-			feature.MovingMean,
-			feature.MovingStandardDeviation,
-		),
+				valuesString,
+		args,
 	)
+
 	if err != nil {
-		err = fmt.Errorf("could not persist column_datacategory_stats object: %v",err)
+		err = fmt.Errorf("could not persist column_feature_stats object: %v",err)
 		tracelog.Error(err, packageName, funcName)
 		return
 	}

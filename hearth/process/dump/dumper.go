@@ -37,14 +37,10 @@ type DumperType struct {
 	config DumperConfigType
 }
 
-func NewDumpReader(cfg *DumperConfigType) (dumper *DumperType,err error){
-	if cfg == nil {
-		//TODO: fill me
-
-	}
-
-	err = validateConfig(cfg)
+func NewDumper(cfg *DumperConfigType) (dumper *DumperType,err error){
+	err = validateDumperConfig(cfg)
 	if err != nil {
+		err = fmt.Errorf("coult not create a new dumper: %v",err)
 		return
 	}
 	return &DumperType{
@@ -94,9 +90,10 @@ func IsErrorByContext(err error) bool {
 
 
 
-func validateConfig(cfg *DumperConfigType) (err error) {
+func validateDumperConfig(cfg *DumperConfigType) (err error) {
 	if cfg == nil {
-		err = fmt.Errorf("config is not initialized")
+		err = fmt.Errorf("DumperConfig is not initialized")
+		return
 	}
 
 	if cfg.StartFromLine !=nil && cfg.StartFromByte != nil &&
@@ -107,6 +104,8 @@ func validateConfig(cfg *DumperConfigType) (err error) {
 			cfg.StartFromLine.Line,
 			cfg.StartFromByte.Position,
 		)
+		return
+
 	}
 
 	if cfg.ColumnSeparator == 0 {
@@ -133,18 +132,20 @@ func (dumper *DumperType) ReadFromStream(
 ) (lineNumber uint64, err error) {
 	var streamPosition uint64
 
-
-	err = validateConfig(&dumper.config)
-	if err != nil {
-		return
-	}
-
 	if rowProcessingFunc == nil {
 		err = fmt.Errorf(
 			"row processing function must be defined",
 		)
 		return
 	}
+
+	err = validateDumperConfig(&dumper.config)
+	if err != nil {
+		err = fmt.Errorf("could not process dump stream: %v",err)
+		return
+	}
+
+
 
 
 
@@ -166,7 +167,8 @@ func (dumper *DumperType) ReadFromStream(
 
 
 	if dumper.config.StartFromByte != nil && dumper.config.StartFromByte.Position > 0 {
-		discarded, err := buffered.Discard(dumper.config.StartFromByte.Position)
+		var discarded int
+		discarded, err = buffered.Discard(dumper.config.StartFromByte.Position)
 		if err != nil {
 			err = fmt.Errorf("could not discard stream to position %v: %v",
 				dumper.config.StartFromByte.Position,
@@ -193,7 +195,8 @@ func (dumper *DumperType) ReadFromStream(
 			err = &errorAbortedByContext{}
 			return
 		default:
-			originalLine, err := buffered.ReadSlice(dumper.config.LineSeparator)
+			var originalLine []byte
+			originalLine, err = buffered.ReadSlice(dumper.config.LineSeparator)
 			if err == io.EOF {
 				return lineNumber, nil
 			} else if err != nil {
@@ -238,13 +241,15 @@ func (dumper *DumperType) ReadFromFile(
 	rowProcessingFunc RowProcessingFuncType ,
 ) (lineNumber uint64, err error) {
 
-	err = validateConfig(&dumper.config)
-	if err != nil {
-		return
-	}
 
 	if strings.TrimSpace(pathToFile) == "" {
 		err = errors.New("pathToFile is empty")
+		return
+	}
+
+	err = validateDumperConfig(&dumper.config)
+	if err != nil {
+		err = fmt.Errorf("could not process file %v : %v",pathToFile,err)
 		return
 	}
 

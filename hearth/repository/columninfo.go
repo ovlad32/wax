@@ -6,7 +6,7 @@ import (
 	"github.com/ovlad32/wax/hearth/dto"
 )
 
-func columnInfo(ctx context.Context, whereFunc func() string) (result []*dto.ColumnInfoType, err error) {
+func columnInfo(ctx context.Context, where whereFunc, args []interface{}) (result []*dto.ColumnInfoType, err error) {
 
 	tx, err := iDb.Conn(ctx)
 	if err != nil {
@@ -30,12 +30,12 @@ func columnInfo(ctx context.Context, whereFunc func() string) (result []*dto.Col
 		" ,TABLE_INFO_ID" +
 		" FROM COLUMN_INFO "
 
-	if whereFunc != nil {
-		query = query + whereFunc()
+	if where != nil {
+		query = query + where()
 	}
 
 	query = query + " ORDER BY POSITION"
-	rws, err := tx.QueryContext(ctx, query)
+	rws, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return
 	}
@@ -71,13 +71,27 @@ func columnInfo(ctx context.Context, whereFunc func() string) (result []*dto.Col
 }
 
 func ColumnInfoByTable(ctx context.Context, tableInfo *dto.TableInfoType) (result []*dto.ColumnInfoType, err error) {
-	whereFunc := func() string {
-		if tableInfo != nil && tableInfo.Id.Valid() {
-			return fmt.Sprintf(" WHERE TABLE_INFO_ID = %v", tableInfo.Id)
+	where := MakeWhereFunc()
+	args := MakeWhereArgs()
+	whereString := " WHERE TABLE_INFO_ID = %v"
+
+	if tableInfo != nil && tableInfo.Id.Valid() {
+		switch  currentDbType {
+		case H2:
+			where = func() string {
+				return fmt.Sprintf(whereString , tableInfo.Id)
+			}
+		default:
+			where = func() string {
+				return fmt.Sprintf(whereString , "?")
+			}
+
+			args = append(args, tableInfo.Id.Value())
 		}
-		return ""
 	}
-	result, err = columnInfo(ctx, whereFunc)
+
+
+	result, err = columnInfo(ctx, where, args)
 	if err == nil {
 		for index := range result {
 			result[index].TableInfo = tableInfo
@@ -87,10 +101,22 @@ func ColumnInfoByTable(ctx context.Context, tableInfo *dto.TableInfoType) (resul
 }
 
 func ColumnInfoById(ctx context.Context, Id int) (result *dto.ColumnInfoType, err error) {
-	whereFunc := func() string {
-		return fmt.Sprintf(" WHERE ID = %v", Id)
+	where := MakeWhereFunc()
+	args := MakeWhereArgs()
+	whereString := " WHERE ID = %v"
+	switch currentDbType {
+	case H2:
+		where = func() string {
+			return fmt.Sprintf(whereString, Id)
+		}
+	default:
+		where = func() string {
+			return fmt.Sprintf(whereString, "")
+		}
+		args = append(args,Id)
 	}
-	res, err := columnInfo(ctx, whereFunc)
+
+	res, err := columnInfo(ctx, where, args)
 
 	if err == nil && len(res) > 0 {
 		result = res[0]

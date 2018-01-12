@@ -1,7 +1,5 @@
 package handling
 
-import "fmt"
-
 type Logger interface {
 
 // Started uses the Serialize destination and adds a Started tag to the log line

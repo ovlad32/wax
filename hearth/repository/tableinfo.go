@@ -6,7 +6,7 @@ import (
 	"github.com/ovlad32/wax/hearth/dto"
 )
 
-func tableInfo(ctx context.Context, whereFunc func() string) (result []*dto.TableInfoType, err error) {
+func tableInfo(ctx context.Context, where whereFunc, args []interface{}) (result []*dto.TableInfoType, err error) {
 
 	tx, err := iDb.Conn(ctx)
 	if err != nil {
@@ -26,12 +26,11 @@ func tableInfo(ctx context.Context, whereFunc func() string) (result []*dto.Tabl
 		" ,METADATA_ID" +
 		" FROM TABLE_INFO "
 
-	if whereFunc != nil {
-		query = query + whereFunc()
+	if where != nil {
+		query = query + where()
 	}
-	query = query + " ORDER BY NAME"
-
-	rws, err := tx.QueryContext(ctx, query)
+//	query = query + " ORDER BY NAME"
+	rws, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return
 	}
@@ -64,16 +63,31 @@ func tableInfo(ctx context.Context, whereFunc func() string) (result []*dto.Tabl
 }
 
 func TableInfoByMetadata(ctx context.Context, metadata *dto.MetadataType) (result []*dto.TableInfoType, err error) {
-	whereFunc := func() string {
-		if metadata != nil && metadata.Id.Valid() {
-			return fmt.Sprintf(" WHERE METADATA_ID = %v and DUMPED=true", metadata.Id)
+	where := MakeWhereFunc()
+	args := MakeWhereArgs()
+
+	if metadata != nil && metadata.Id.Valid() {
+		whereString := " WHERE METADATA_ID = %v and DUMPED=true"
+		switch currentDbType {
+		case H2:
+			where = func() string {
+				return fmt.Sprintf(whereString, metadata.Id)
+			}
+		default:
+			whereString = fmt.Sprintf(whereString, "?")
+			where = func() string {
+				return whereString
+			}
+			args = append(args, metadata.Id)
 		}
-		return ""
 	}
-	result, err = tableInfo(ctx, whereFunc)
+
+	result, err = tableInfo(ctx, where, args)
+
 	if err != nil {
 		return
 	}
+
 	for tableIndex := range result {
 		result[tableIndex].Metadata = metadata
 		_, err = ColumnInfoByTable(ctx, result[tableIndex])
@@ -85,10 +99,23 @@ func TableInfoByMetadata(ctx context.Context, metadata *dto.MetadataType) (resul
 }
 
 func TableInfoById(ctx context.Context, id int) (result *dto.TableInfoType, err error) {
-	whereFunc := func() string {
-		return fmt.Sprintf(" WHERE ID = %v", id)
+	where := MakeWhereFunc()
+	args := MakeWhereArgs()
+	whereString := " WHERE ID = %v and DUMPED=true"
+
+	switch currentDbType {
+	case H2:
+		where = func() string {
+			return fmt.Sprintf(whereString, id)
+		}
+	default:
+		where = func() string {
+			return fmt.Sprintf(whereString, "?")
+		}
+		args = append(args, id)
 	}
-	res, err := tableInfo(ctx, whereFunc)
+
+	res, err := tableInfo(ctx, where, args)
 	if err == nil && len(res) > 0 {
 		res[0].Columns, err = ColumnInfoByTable(ctx, res[0])
 		if err == nil {

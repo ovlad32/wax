@@ -10,7 +10,7 @@ import (
 
 
 
-func databaseConfig(ctx context.Context, whereFunc func() string) (result []*dto.DatabaseConfigType, err error) {
+func databaseConfig(ctx context.Context, where  whereFunc, args []interface{}) (result []*dto.DatabaseConfigType, err error) {
 	var funcName = "repository::databaseConfig"
 	tracelog.Started(packageName, funcName)
 
@@ -34,12 +34,12 @@ func databaseConfig(ctx context.Context, whereFunc func() string) (result []*dto
 		" ,PASSWORD " +
 		" FROM DATABASE_CONFIG "
 
-	if whereFunc != nil {
-		query = query + whereFunc()
+	if where != nil {
+		query = query + where()
 	}
 	query = query + " ORDER BY NAME"
 
-	rws, err := tx.QueryContext(ctx, query)
+	rws, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		tracelog.Error(err, packageName, funcName)
 		return
@@ -79,15 +79,21 @@ func databaseConfig(ctx context.Context, whereFunc func() string) (result []*dto
 }
 
 func DatabaseConfigAll(ctx context.Context) (result []*dto.DatabaseConfigType, err error) {
-	return databaseConfig(ctx, nil)
+	return databaseConfig(ctx, nil,nil)
 }
 
 func DatabaseConfigById(Id int) (ctx context.Context, result *dto.DatabaseConfigType, err error) {
-	whereFunc := func() string {
-		return fmt.Sprintf(" WHERE ID = %v", Id)
+	args := MakeWhereArgs()
+	whereString := " WHERE ID = %v"
+	switch currentDbType {
+	case H2:
+		whereString = fmt.Sprintf(whereString,Id)
+	default:
+		whereString = fmt.Sprintf(whereString,"?")
+		args = append(args,Id)
 	}
-
-	res, err := databaseConfig(ctx, whereFunc)
+	where := func ()string{ return whereString }
+	res, err := databaseConfig(ctx, where, args)
 
 	if err == nil && len(res) > 0 {
 		result = res[0]

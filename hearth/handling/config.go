@@ -7,8 +7,17 @@ import (
 	"os"
 	"path/filepath"
 )
+type BackendDatabaseType struct {
+	Type     string `json:"type"`
+	Host     string `json:"host"`
+	Port     string `json:"port"`
+	Login    string `json:"login"`
+	Password string `json:"password"`
+	Database string `json:"database"`
+}
 
 type AstraConfigType struct {
+	BackendDatabases        []BackendDatabaseType `json:"be-databases"`
 	AstraH2Host             string `json:"astra-h2-host"`
 	AstraH2Port             string `json:"astra-h2-port"`
 	AstraH2Login            string `json:"astra-h2-login"`

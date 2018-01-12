@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"github.com/ovlad32/wax/hearth/dto"
 	"github.com/ovlad32/wax/hearth/handling/nullable"
+	"context"
 )
 
-func metadata(whereFunc func() string) (result []*dto.MetadataType, err error) {
+func metadata(ctx context.Context, where whereFunc, args []interface{}) (result []*dto.MetadataType, err error) {
 	tx, err := iDb.Begin()
 	if err != nil {
 		return
@@ -21,11 +22,11 @@ func metadata(whereFunc func() string) (result []*dto.MetadataType, err error) {
 		" ,DATABASE_CONFIG_ID" +
 		" FROM METADATA "
 
-	if whereFunc != nil {
-		query = query + whereFunc()
+	if where != nil {
+		query = query + where()
 	}
-	query = query + " ORDER BY ID"
-	rws, err := tx.Query(query)
+//	query = query + " ORDER BY ID"
+	rws, err := tx.QueryContext(ctx,query,args...)
 	if err != nil {
 		return
 	}
@@ -53,13 +54,22 @@ func HighestDatabaseConfigVersion(DatabaseConfigId uint) (result nullable.NullIn
 		return
 	}
 	defer tx.Rollback()
+	whereString := " WHERE DATABASE_CONFIG_ID = %v"
+	whereArgs := MakeWhereArgs()
+	switch  currentDbType {
+	case H2:
+		whereString = fmt.Sprintf(whereString,DatabaseConfigId)
+	default:
+		whereString = fmt.Sprintf(whereString,"?")
+		whereArgs = append(whereArgs,DatabaseConfigId)
+	}
 
-	err = tx.QueryRow(fmt.Sprintf("SELECT MAX(VERSION) FROM METADATA WHERE DATABASE_CONFIG_ID = %v", DatabaseConfigId)).Scan(result)
+	err = tx.QueryRow(fmt.Sprintf("SELECT MAX(VERSION) FROM METADATA "+whereString,whereArgs)).Scan(result)
 
 	return
 }
 
-func LastTakenMetadata(DatabaseConfigId uint) (result *dto.MetadataType, err error) {
+func LastTakenMetadata(ctx context.Context, DatabaseConfigId uint) (result *dto.MetadataType, err error) {
 	version, err := HighestDatabaseConfigVersion(DatabaseConfigId)
 
 	tx, err := iDb.Begin()
@@ -67,22 +77,45 @@ func LastTakenMetadata(DatabaseConfigId uint) (result *dto.MetadataType, err err
 		return
 	}
 	defer tx.Rollback()
-	results, err := metadata(func() string {
-		return fmt.Sprintf(" WHERE DATABASE_CONFIG_ID = %v and VERSION = %v ",
-			DatabaseConfigId,
-			version,
-		)
-	})
+	args := MakeWhereArgs()
+	whereString := " WHERE DATABASE_CONFIG_ID = %v and VERSION = %v "
+	switch currentDbType {
+	case H2:
+		whereString = fmt.Sprintf(whereString, DatabaseConfigId, version)
+	default:
+		whereString = fmt.Sprintf(whereString, "?","?")
+		args = append(args, DatabaseConfigId, version)
+	}
+	results, err := metadata(
+		ctx,
+		func() string {
+			return whereString
+		},
+		args,
+	)
 	if err == nil && len(results) > 0 {
 		result = results[0]
 	}
 	return
 }
 
-func MetadataById(metadataId int) (result *dto.MetadataType, err error) {
-	results, err := metadata(func() string {
-		return fmt.Sprintf(" WHERE ID = %v", metadataId)
-	})
+func MetadataById(ctx context.Context, metadataId int) (result *dto.MetadataType, err error) {
+	args := MakeWhereArgs()
+	whereString := " WHERE ID = %v"
+	switch currentDbType {
+	case H2:
+		whereString = fmt.Sprintf(whereString, metadataId)
+	default:
+		whereString = fmt.Sprintf(whereString, "?")
+		args = append(args,metadataId)
+	}
+	results, err := metadata(
+		ctx,
+		func() string {
+			return whereString
+		},
+		args,
+	)
 	if err == nil && len(results) > 0 {
 		result = results[0]
 	}

@@ -130,7 +130,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 		return nil
 	}
 
-	dumper,err  := dump.NewDumpReader(
+	dumper,err  := dump.NewDumper(
 		dumperConfig,
 	)
 

@@ -96,7 +96,7 @@ type outWriterType struct {
 
 func newOutWriter(pathToSliceDirectory string) (out *outWriterType,err error) {
 	out = &outWriterType{}
-	os.MkdirAll(pathToSliceDirectory,0x007)
+	os.MkdirAll(pathToSliceDirectory,0711)
 	out.file, err = ioutil.TempFile(pathToSliceDirectory,"")
 	if err != nil {
 		err = fmt.Errorf("could not create a temp file at %v: %v",pathToSliceDirectory,err)
@@ -153,7 +153,6 @@ func (out *outWriterType) Close() (err error) {
 func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile string, categoryColumnListInterface dto.ColumnListInterface) (err error){
 	var targetTable *dto.TableInfoType
 
-	holder := make(map[string]*outWriterType)
 	counter := make(map[string]uint64)
 
 
@@ -215,36 +214,20 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 				err = currentOutWriter.Close()
 				//TODO: err!
 			}
-			//currentOutWriter, err = newOutWriter(splitter.config.PathToSliceDirectory)
-			found := false
+
 			var index uint64
 			key := categoryRowData.String()
-			if index, found = counter[key]; !found {
+			if index, found := counter[key]; !found {
 				index = uint64(len(counter)+1)
-				currentOutWriter, err = newOutWriter(path.Join(splitter.config.PathToSliceDirectory,strconv.FormatUint(index,36)))
 				counter[key] = index
-			} else {
-				currentOutWriter, err = newOutWriter(path.Join(splitter.config.PathToSliceDirectory,strconv.FormatUint(index,36)))
-				//err = currentOutWriter.Reopen()
-				//TODO: err!
 			}
 
+			currentOutWriter, err = newOutWriter(path.Join(splitter.config.PathToSliceDirectory,strconv.FormatUint(index,36)))
+			if err != nil {
+				err = fmt.Errorf("could not create a temp file #%v: %v",index,err)
+				return err
+			}
 
-			/*found := false
-			key := categoryRowData.String()
-			if currentOutWriter, found = holder[key]; !found {
-				currentOutWriter, err = newOutWriter(splitter.config.PathToSliceDirectory)
-				holder[key] = currentOutWriter
-			} else {
-				err = currentOutWriter.Reopen()
-				//TODO: err!
-			}*/
-			/*if zipWriter == nil {
-				zipWriter = gzip.NewWriter(currentOutWriter)
-			} else {
-				zipWriter.Flush()
-				zipWriter.Reset(currentOutWriter)
-			}*/
 			_, err = currentOutWriter.writer.Write(original)
 			lastCategoryRowData.Copy(categoryRowData)
 		}
@@ -254,18 +237,17 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 	if err != nil {
 		return
 	}
+
 	linesRead, err := dumper.ReadFromFile(
 		ctx,
 		pathToFile,
 		processRowContent,
 	)
+
 	_ = linesRead
-	//zipWriter.Flush()
+
 	if 	currentOutWriter != nil {
 		currentOutWriter.Close();
-	}
-	for _,h := range holder{
-		h.Close()
 	}
 
 	if err != nil {

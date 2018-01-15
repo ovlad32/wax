@@ -7,7 +7,7 @@ import (
 	"github.com/ovlad32/wax/hearth"
 	"github.com/ovlad32/wax/hearth/dto"
 	"github.com/ovlad32/wax/hearth/handling"
-	index "github.com/ovlad32/wax/hearth/process/index"
+	"github.com/ovlad32/wax/hearth/process/index"
 	"github.com/ovlad32/wax/hearth/repository"
 	"log"
 	"math"
@@ -84,7 +84,7 @@ func test1() {
 	}
 
 	ctx := context.Background()
-	table, err := repository.TableInfoById(ctx, 100) //111:7
+	table, err := repository.TableInfoById(ctx, 111) //100:111
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func test1() {
 	err = splitter.SplitFile(
 		ctx,
 		path.Join(config.AstraDumpPath,table.PathToFile.String()),
-		dto.ColumnInfoListType{table.Columns[2]},
+		dto.ColumnInfoListType{table.Columns[7]}, //7:2
 	)
 	if err != nil {
 		log.Fatal(err)

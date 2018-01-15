@@ -2,8 +2,6 @@ data/
 log/
 DBS/
 BINDATA/
-src/github.com/
-src/golang.org/
 *.exe
 *.db
 *.lock

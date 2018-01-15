@@ -1,5 +1,5 @@
 
-create table if not exists EDM.METADATA(
+create table if not exists METADATA(
   ID	BIGINT	NOT NULL,
   CREATION_DATE	VARCHAR(255)	NULL,
   DUMPED	BOOLEAN	NOT NULL,

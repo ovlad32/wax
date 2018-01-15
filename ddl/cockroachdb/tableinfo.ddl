@@ -1,6 +1,6 @@
 
 
-create table if not exists EDM.TABLE_INFO(
+create table if not exists TABLE_INFO(
   ID	BIGINT	NOT NULL,
   DATABASE_NAME	VARCHAR(255)	NOT NULL,
   DUMPED	BOOLEAN	NULL,

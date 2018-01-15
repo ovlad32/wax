@@ -14,6 +14,8 @@ import (
 	"strings"
 	"path"
 	"strconv"
+	"github.com/ovlad32/wax/hearth/repository"
+	"github.com/ovlad32/wax/hearth/handling/nullable"
 )
 
 type CategorySplitConfigType struct {
@@ -36,7 +38,7 @@ type CategorySplitterType struct {
 	config CategorySplitConfigType
 }
 
-func NewCategorySpliter(cfg *CategorySplitConfigType) (splitter *CategorySplitterType,err error) {
+func NewCategorySplitter(cfg *CategorySplitConfigType) (splitter *CategorySplitterType,err error) {
 	//TODO: fill me
 	err = validateCategorySplitConfig(cfg)
 	if err != nil {
@@ -52,13 +54,27 @@ func NewCategorySpliter(cfg *CategorySplitConfigType) (splitter *CategorySplitte
 
 }
 
-type categoryColumnDataType [][]byte
+type rowCategoryData [][]byte
 
-func (c categoryColumnDataType) Equal(data [][]byte) bool{
+func newRowCategoryData(size int) (result rowCategoryData) {
+	result = make(rowCategoryData,size)
+	return
+}
+
+func (c rowCategoryData) Copy(data [][]byte) {
+	for index := range data {
+		c[index] = make([]byte,len(data[index]))
+		copy(c[index],data[index])
+	}
+	return
+}
+
+func (c rowCategoryData) Equal(data [][]byte) bool{
 
 	if len(data) != len(c) {
 		return false
 	}
+
 	for index := range c {
 		if len(c[index]) != len(data[index]){
 			return false
@@ -69,22 +85,22 @@ func (c categoryColumnDataType) Equal(data [][]byte) bool{
 			}
 		}
 	}
-	//fmt.Printf("%v:%v\n",c,data)
 	return true
-
-//	return reflect.DeepEqual(c,data)
 }
 
-func (c categoryColumnDataType) Copy(data [][]byte){
-	for index := range data {
-		c[index] = make([]byte,len(data[index]))
-		copy(c[index],data[index])
+
+
+
+func (c rowCategoryData) String() (result string){
+	chunks:= make([][]byte,len(c))
+	for index := range(c) {
+		chunks[index]  = c[index]
 	}
+	return string(bytes.Join(chunks,[]byte{0x1F}))
 }
 
-func (c categoryColumnDataType) String() (result string){
-	return string(bytes.Join(c,[]byte{0x1F}))
-}
+
+
 
 type outWriterType struct {
 	writer io.Writer
@@ -152,9 +168,7 @@ func (out *outWriterType) Close() (err error) {
 
 func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile string, categoryColumnListInterface dto.ColumnListInterface) (err error){
 	var targetTable *dto.TableInfoType
-
-	counter := make(map[string]uint64)
-
+	counter := make(map[string]*dto.CategorySplitRowDataType)
 
 
 	if categoryColumnListInterface == nil {
@@ -162,27 +176,50 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 		return err
 	}
 
-	categoryColumns := categoryColumnListInterface.ColumnList();
-	if len(categoryColumns) == 0 {
+	splitColumns := categoryColumnListInterface.ColumnList();
+	if len(splitColumns ) == 0 {
 		err = fmt.Errorf("parameter 'categoryColumnList' is empty")
 		return err
 	}
 
+	categorySplit :=&dto.CategorySplitType{
+		Table: splitColumns [0].TableInfo,
+		CategorySplitColumns: make(dto.CategorySplitColumnListType,0,len(splitColumns)),
+	}
 
-	targetTable = categoryColumns[0].TableInfo
+	repository.PutCategorySplit(categorySplit)
 
-	targetTableColumns:= targetTable.ColumnList()
-	targetTableColumnCount := len(targetTableColumns)
+	slitColumnMap := make(map[*dto.ColumnInfoType]*dto.CategorySplitColumnType);
 
-	categoryPositions, err := targetTable.ColumnPositionFlags(categoryColumns,dto.ColumnPositionOn)
+	tableColumns := targetTable.ColumnList()
+
+	for position,column := range (splitColumns) {
+		splitColumn := &dto.CategorySplitColumnType{
+			Column:        column,
+			Position:      position,
+			CategorySplit: categorySplit,
+		}
+		slitColumnMap[column] = splitColumn
+		categorySplit.CategorySplitColumns = append(categorySplit.CategorySplitColumns, splitColumn)
+		err = repository.PutCategorySplitColumn(splitColumn)
+		if err != nil {
+			return err
+		}
+	}
+
+
+
+	tableColumnCount := len(tableColumns)
+
+	splitPositions, err := targetTable.ColumnPositionFlags(splitColumns,dto.ColumnPositionOn)
 
 	dumperConfig := splitter.config.DumpReaderConfig
 
-	lastCategoryRowData := make(categoryColumnDataType,len(categoryColumns))
-	var currentOutWriter *outWriterType;
+	lastRowCategoryData := newRowCategoryData(len(splitColumns))
+	currentRowCategoryData := newRowCategoryData(len(splitColumns))
 
-	categoryRowData := make(categoryColumnDataType,len(categoryColumns))
-
+	var currentOutWriter *outWriterType
+	var currentLineNumber uint64 = 0
 	processRowContent := func(
 		ctx context.Context,
 		lineNumber,
@@ -190,46 +227,88 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 		rowFields [][]byte,
 		original []byte,
 	) (err error) {
-		categoryNum := 0
-		if len(rowFields) != targetTableColumnCount  {
-			err = fmt.Errorf("Column count mismach given: %v, expected %v",len(rowFields),targetTableColumnCount)
+		categoryColumnCount := 0
+		if len(rowFields) != tableColumnCount  {
+			err = fmt.Errorf("Column count mismach given: %v, expected %v",len(rowFields),tableColumnCount)
 			return
 		}
-
-
 		for columnNumber  := range targetTable.Columns {
-			if categoryPositions[columnNumber] {
-				categoryRowData[categoryNum] = rowFields[columnNumber]
-				categoryNum++
+			if splitPositions[columnNumber] {
+				currentRowCategoryData[categoryColumnCount] = rowFields[columnNumber]
+				categoryColumnCount++
 			}
 		}
 
-		if lastCategoryRowData.Equal(categoryRowData) {
+		if lastRowCategoryData != nil && lastRowCategoryData.Equal(currentRowCategoryData) {
 			_, err = currentOutWriter.writer.Write(original)
 			if err != nil {
-
+				err = fmt.Errorf("could not write a split file %v for dump %v: %v",
+					currentOutWriter.file.Name(),
+					pathToFile,
+					err,
+				)
+				return err
 			}
+			currentLineNumber++
 		} else {
 			if currentOutWriter != nil {
 				err = currentOutWriter.Close()
 				//TODO: err!
 			}
 
-			var index uint64
-			key := categoryRowData.String()
-			if index, found := counter[key]; !found {
-				index = uint64(len(counter)+1)
-				counter[key] = index
+			key := currentRowCategoryData.String()
+			var rowDataId int64
+			if rowData, found := counter[key]; !found {
+				rowData := &dto.CategorySplitRowDataType{
+					CategorySplit:categorySplit,
+					Data:key,
+				}
+				err = repository.PutCategorySplitRowDataType(rowData)
+				if err!=nil {
+					err =fmt.Errorf("could not persist CategorySplitRowDataType:%v",err)
+					return err
+				}
+				rowDataId = rowData.Id.Value()
+				counter[key] = rowData
+			} else {
+				rowDataId = rowData.Id.Value()
 			}
 
-			currentOutWriter, err = newOutWriter(path.Join(splitter.config.PathToSliceDirectory,strconv.FormatUint(index,36)))
+			directoryPrefix := strconv.FormatInt(rowDataId,36)
+			outDirectory := path.Join(
+				splitter.config.PathToSliceDirectory,
+				strconv.FormatInt(categorySplit.Table.Id.Value(),10),
+				directoryPrefix,
+				)
+			currentOutWriter, err = newOutWriter(outDirectory)
 			if err != nil {
-				err = fmt.Errorf("could not create a temp file #%v: %v",index,err)
+				err = fmt.Errorf("could not create a temp file #%v for dump %v: %v",
+					rowDataId,
+					pathToFile,
+					err,
+				)
 				return err
 			}
+			categorySplitFile := &dto.CategorySplitFileType {
+				CategorySplitRowDataId:nullable.NewNullInt64(rowDataId),
+				PathToFile:
+			}
+
+			directory, file := path.Split(currentOutWriter.file.Name())
 
 			_, err = currentOutWriter.writer.Write(original)
-			lastCategoryRowData.Copy(categoryRowData)
+			if err != nil {
+				err = fmt.Errorf("could not write a split file %v for dump %v: %v",
+					currentOutWriter.file.Name(),
+					pathToFile,
+					err,
+				)
+				return err
+			}
+			currentLineNumber++
+
+			lastRowCategoryData.Copy(currentRowCategoryData)
+
 		}
 		return
 	}

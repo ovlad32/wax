@@ -11,7 +11,7 @@ create table if not exists column_feature_stats(
    , item_unique_count bigint
    , min_sval varchar(4000)
    , max_sval varchar(4000)
-   , min_fval float
-   , max_fval float
+   , min_fval DOUBLE PRECISION
+   , max_fval DOUBLE PRECISION
    , constraint column_feature_stats_pk primary key(column_info_id, key)
 );

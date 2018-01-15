@@ -50,10 +50,10 @@ def make_insert(query_description, target_table):
     else:
         return "",list()
 
-pipe(["public.database_config","edm.database_config"])
-pipe(["public.metadata","edm.metadata"])
-pipe(["public.table_info","edm.table_info"])
-pipe(["public.column_info","edm.column_info"])
+pipe(["public.database_config","public.database_config"])
+pipe(["public.metadata","public.metadata"])
+pipe(["public.table_info","public.table_info"])
+pipe(["public.column_info","public.column_info"])
 
 
 

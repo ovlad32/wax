@@ -2,7 +2,6 @@ package dto
 
 import (
 	"github.com/ovlad32/wax/hearth/handling/nullable"
-	"github.com/cayleygraph/cayley/graph/iterator"
 )
 
 type CategorySplitType struct {
@@ -45,7 +44,7 @@ type CategorySplitFileType struct {
 	CategorySplitRowDataId nullable.NullInt64
 	CategorySplitRowData *CategorySplitRowDataType
 	PathToFile string
-	Temp bool
+	Perma bool
 	Indexed bool
 	Zipped bool
 	RowCount nullable.NullInt64

@@ -5,8 +5,6 @@ import (
 	"github.com/ovlad32/wax/hearth/process/dump"
 	"context"
 	"fmt"
-	"io"
-	"bufio"
 	"os"
 	"io/ioutil"
 	"bytes"
@@ -16,13 +14,26 @@ import (
 	"strconv"
 	"github.com/ovlad32/wax/hearth/repository"
 	"github.com/ovlad32/wax/hearth/handling/nullable"
+	"runtime"
+	"time"
 )
 
 type CategorySplitConfigType struct {
 	DumpReaderConfig *dump.DumperConfigType
 	PathToSliceDirectory string
+	MaxRowCountPerFile int64
 	log handling.Logger
 }
+
+const (
+	dataSeparatorByte byte = 0x1F;
+	initialBufferSize int = 4*1024
+)
+
+
+
+
+
 func validateCategorySplitConfig(cfg *CategorySplitConfigType) (err error) {
 	if cfg == nil {
 		err = fmt.Errorf("config is not initialized")
@@ -92,83 +103,94 @@ func (c rowCategoryData) Equal(data [][]byte) bool{
 
 
 func (c rowCategoryData) String() (result string){
-	chunks:= make([][]byte,len(c))
+	chunks:= make([]string,len(c))
 	for index := range(c) {
-		chunks[index]  = c[index]
+		chunks[index] = string(c[index])
 	}
-	return string(bytes.Join(chunks,[]byte{0x1F}))
+
+	return strings.Join(
+		chunks,
+		string([]byte{dataSeparatorByte}),
+		)
 }
 
+type bufferedCategorySplitFileType struct{
+	config *CategorySplitConfigType
 
-
-
-type outWriterType struct {
-	writer io.Writer
-	buffer *bufio.Writer
-	file *os.File
-	fileName string
+	*dto.CategorySplitFileType
+	buffer *bytes.Buffer
+	currentRowCount int64
 }
 
-
-func newOutWriter(pathToSliceDirectory string) (out *outWriterType,err error) {
-	out = &outWriterType{}
-	os.MkdirAll(pathToSliceDirectory,0711)
-	out.file, err = ioutil.TempFile(pathToSliceDirectory,"")
+func (b *bufferedCategorySplitFileType) WriteDumpLine(line []byte) (flushed bool,err error){
+	_, err =  b.buffer.Write(line)
 	if err != nil {
-		err = fmt.Errorf("could not create a temp file at %v: %v",pathToSliceDirectory,err)
 		return
 	}
-	out.fileName = out.file.Name()
-
-	out.writer = out.file
-	out.buffer = nil
-
-	out.buffer = bufio.NewWriter(out.file)
-	out.writer = out.buffer
-
-	if false {
-		fmt.Println(out.file.Name())
-	}
-	return
-}
-func (out *outWriterType) Reopen() (err error) {
-	out.file, err = os.OpenFile(out.fileName,os.O_APPEND,0x007)
-	if err != nil {
-		err = fmt.Errorf("could not reopen file %v for appending: %v",out.fileName,err)
-		return
-	}
-	out.buffer = bufio.NewWriter(out.file)
-	out.writer = out.buffer
-	return
-}
-func  (out *outWriterType) IsOpen() bool {
-	return out.file != nil
-}
-
-
-func (out *outWriterType) Close() (err error) {
-	if out.buffer != nil {
-		err = out.buffer.Flush()
+	b.currentRowCount++
+	if (err != nil && err == bytes.ErrTooLarge) ||
+		(b.config.MaxRowCountPerFile > 0 && b.config.MaxRowCountPerFile == b.currentRowCount) {
+		err = b.FlushToTempFile()
 		if err != nil {
-			err = fmt.Errorf("could not flush data to temp file %v: %v", out.fileName, err)
 			return
 		}
+		flushed = true
+		b.currentRowCount = 0
+		b.buffer.Truncate(0)
 	}
-	err = out.file.Close()
-	if err!= nil {
-		err = fmt.Errorf("could not close temp file %v: %v",out.fileName,err)
-		return
-	}
-	out.file = nil
-	out.buffer = nil
-	out.writer = nil
 	return
 }
+
+func (b *bufferedCategorySplitFileType) FlushToTempFile() (err error) {
+
+	tableDirectory := strconv.FormatInt(b.CategorySplitRowData.CategorySplit.Table.Id.Value(),10)
+	splitSessionDirectory := strconv.FormatInt(b.CategorySplitRowData.CategorySplit.Id.Value(),10)
+	categoryDataDirectory := strconv.FormatInt(b.CategorySplitRowData.Id.Value(),10)
+
+	targetDirectory := path.Join(
+		b.config.PathToSliceDirectory,
+		tableDirectory,
+		splitSessionDirectory,
+		categoryDataDirectory,
+	)
+
+	err = os.MkdirAll(targetDirectory,0711)
+	if err!= nil {
+		err = fmt.Errorf("could not create directory %v: %v",targetDirectory,err)
+		return
+	}
+	tempFile, err := ioutil.TempFile(targetDirectory,"")
+	if err != nil {
+		err = fmt.Errorf("could not create a temp file at %v: %v",targetDirectory,err)
+		return
+	}
+
+	_, err = b.buffer.WriteTo(tempFile)
+	if err != nil {
+		err = fmt.Errorf(
+			"could not flush category data slice of table %v to temp file %v: %v",
+			b.CategorySplitRowData.CategorySplit.Table,
+			tempFile.Name(),
+			err,
+		)
+		return
+	}
+
+	b.RowCount = nullable.NewNullInt64(b.currentRowCount);
+	b.PathToFile = tempFile.Name()
+	err = tempFile.Close()
+	if err != nil {
+		err = fmt.Errorf("could not close temp file %v: %v",b.PathToFile,err)
+	}
+	return
+}
+
+
 
 
 func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile string, categoryColumnListInterface dto.ColumnListInterface) (err error){
 	var targetTable *dto.TableInfoType
-	counter := make(map[string]*dto.CategorySplitRowDataType)
+	counter := make(map[string]*bufferedCategorySplitFileType)
 
 
 	if categoryColumnListInterface == nil {
@@ -182,8 +204,10 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 		return err
 	}
 
+	targetTable = splitColumns [0].TableInfo
+
 	categorySplit :=&dto.CategorySplitType{
-		Table: splitColumns [0].TableInfo,
+		Table: targetTable,
 		CategorySplitColumns: make(dto.CategorySplitColumnListType,0,len(splitColumns)),
 	}
 
@@ -218,8 +242,9 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 	lastRowCategoryData := newRowCategoryData(len(splitColumns))
 	currentRowCategoryData := newRowCategoryData(len(splitColumns))
 
-	var currentOutWriter *outWriterType
-	var currentLineNumber uint64 = 0
+	timer := time.NewTicker(time.Second)
+
+	var currentBufferedRowData *bufferedCategorySplitFileType
 	processRowContent := func(
 		ctx context.Context,
 		lineNumber,
@@ -227,9 +252,17 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 		rowFields [][]byte,
 		original []byte,
 	) (err error) {
+		select {
+		case _ = <- timer.C:
+			var stats runtime.MemStats
+			runtime.ReadMemStats(&stats)
+			fmt.Println(stats)
+			fmt.Println(stats.TotalAlloc,stats.TotalAlloc - stats.HeapAlloc,stats.HeapIdle,stats.HeapSys )
+		default:
+		}
 		categoryColumnCount := 0
 		if len(rowFields) != tableColumnCount  {
-			err = fmt.Errorf("Column count mismach given: %v, expected %v",len(rowFields),tableColumnCount)
+			err = fmt.Errorf("column count mismach given: %v, expected %v",len(rowFields),tableColumnCount)
 			return
 		}
 		for columnNumber  := range targetTable.Columns {
@@ -240,27 +273,28 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 		}
 
 		if lastRowCategoryData != nil && lastRowCategoryData.Equal(currentRowCategoryData) {
-			_, err = currentOutWriter.writer.Write(original)
+			var flushed bool
+			flushed,err = currentBufferedRowData.WriteDumpLine(original)
 			if err != nil {
-				err = fmt.Errorf("could not write a split file %v for dump %v: %v",
-					currentOutWriter.file.Name(),
-					pathToFile,
+				err = fmt.Errorf("could not write %v line to a slice: %v",
+					targetTable,
 					err,
 				)
 				return err
 			}
-			currentLineNumber++
-		} else {
-			if currentOutWriter != nil {
-				err = currentOutWriter.Close()
-				//TODO: err!
+			if flushed {
+				err = repository.PutCategorySplitFile(currentBufferedRowData.CategorySplitFileType)
+				if err != nil {
+					return err
+				}
 			}
-
+		} else {
 			key := currentRowCategoryData.String()
-			var rowDataId int64
-			if rowData, found := counter[key]; !found {
+			var found bool
+			if currentBufferedRowData, found = counter[key]; !found {
 				rowData := &dto.CategorySplitRowDataType{
 					CategorySplit:categorySplit,
+					CategorySplitId:categorySplit.Id,
 					Data:key,
 				}
 				err = repository.PutCategorySplitRowDataType(rowData)
@@ -268,50 +302,41 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 					err =fmt.Errorf("could not persist CategorySplitRowDataType:%v",err)
 					return err
 				}
-				rowDataId = rowData.Id.Value()
-				counter[key] = rowData
-			} else {
-				rowDataId = rowData.Id.Value()
+				currentBufferedRowData = &bufferedCategorySplitFileType{
+					CategorySplitFileType: &dto.CategorySplitFileType{
+						CategorySplitRowData:   rowData,
+						CategorySplitRowDataId: rowData.Id,
+					},
+					buffer: bytes.NewBuffer(make([]byte, 0, initialBufferSize)),
+					config: &splitter.config,
+				}
+				counter[key] = currentBufferedRowData
+			}
+			var flushed bool
+			flushed, err = currentBufferedRowData.WriteDumpLine(original)
+			if flushed {
+				err = repository.PutCategorySplitFile(currentBufferedRowData.CategorySplitFileType)
+				if err != nil {
+					return err
+				}
 			}
 
-			directoryPrefix := strconv.FormatInt(rowDataId,36)
-			outDirectory := path.Join(
-				splitter.config.PathToSliceDirectory,
-				strconv.FormatInt(categorySplit.Table.Id.Value(),10),
-				directoryPrefix,
-				)
-			currentOutWriter, err = newOutWriter(outDirectory)
 			if err != nil {
-				err = fmt.Errorf("could not create a temp file #%v for dump %v: %v",
-					rowDataId,
-					pathToFile,
+				err = fmt.Errorf("could not write %v line to a slice: %v",
+					targetTable,
 					err,
 				)
 				return err
 			}
-			categorySplitFile := &dto.CategorySplitFileType {
-				CategorySplitRowDataId:nullable.NewNullInt64(rowDataId),
-				PathToFile:
-			}
-
-			directory, file := path.Split(currentOutWriter.file.Name())
-
-			_, err = currentOutWriter.writer.Write(original)
-			if err != nil {
-				err = fmt.Errorf("could not write a split file %v for dump %v: %v",
-					currentOutWriter.file.Name(),
-					pathToFile,
-					err,
-				)
-				return err
-			}
-			currentLineNumber++
 
 			lastRowCategoryData.Copy(currentRowCategoryData)
+
+
 
 		}
 		return
 	}
+
 	dumper, err  := dump.NewDumper(dumperConfig)
 	if err != nil {
 		return
@@ -324,9 +349,17 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 	)
 
 	_ = linesRead
-
-	if 	currentOutWriter != nil {
-		currentOutWriter.Close();
+	for _, currentBufferedRowData = range counter {
+		err = currentBufferedRowData.FlushToTempFile()
+		if err != nil {
+			//TODO: err!
+			return err
+		}
+		repository.PutCategorySplitFile(currentBufferedRowData.CategorySplitFileType)
+		if err != nil {
+			//TODO: err!
+			return err
+		}
 	}
 
 	if err != nil {

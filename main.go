@@ -100,7 +100,7 @@ func test1() {
 		log.Fatal(err)
 	}*/
 
-	splitter,err  :=categorysplit.NewCategorySpliter(&categorysplit.CategorySplitConfigType{
+	splitter,err  :=categorysplit.NewCategorySplitter(&categorysplit.CategorySplitConfigType{
 		DumpReaderConfig: hearth.AdaptDataReaderConfig(config),
 		PathToSliceDirectory: config.BitsetPath,
 	})

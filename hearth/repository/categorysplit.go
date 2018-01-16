@@ -34,9 +34,9 @@ func PutCategorySplit(entity *dto.CategorySplitType) (err error){
 
 	var newOne bool
 	if !entity.Id.Valid() {
-		id,err := CategorySplitSeqId()
+		id, err := CategorySplitSeqId()
 		if err != nil {
-			return
+			return err
 		}
 		entity.Id = nullable.NewNullInt64(id)
 		newOne = true
@@ -299,15 +299,15 @@ func PutCategorySplitFile(entity *dto.CategorySplitFileType) (err error) {
 	if  newOne {
 		switch currentDbType {
 		case H2:
-			dml = "insert into category_split_file(id,category_split_id, path_to_file) values(%v,%v,'%v',row_count)"
+			dml = "insert into category_split_file(id,category_split_tbldata_id, path_to_file,row_count) values(%v,%v,'%v',%v)"
 			dml = fmt.Sprintf(dml,entity.Id,entity.CategorySplitRowDataId,entity.PathToFile,entity.RowCount)
 			_,err = iDb.Exec(dml)
 		default:
-			dml = "insert into category_split_file(id, category_split_id, path_to_file) values(?,?,?,?)"
+			dml = "insert into category_split_file(id, category_split_tbldata_id, path_to_file,row_count) values(?,?,?,?)"
 			_,err = iDb.Exec(dml,entity.Id,entity.CategorySplitRowDataId,entity.PathToFile,entity.RowCount)
 		}
 		if err != nil {
-			err = fmt.Errorf("could not add a new category_split_rowdata row: %v",err)
+			err = fmt.Errorf("could not add a new category_split_file row: %v",err)
 			return
 		}
 	} else {

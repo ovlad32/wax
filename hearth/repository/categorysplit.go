@@ -60,12 +60,12 @@ func PutCategorySplit(entity *dto.CategorySplitType) (err error){
 	} else {
 		switch currentDbType {
 		case H2:
-			dml = "update category_split set status = '%v' where id = %v"
-			dml = fmt.Sprintf(dml,entity.Status,entity.Id)
+			dml = "update category_split set built=%v, status='%v' where id = %v"
+			dml = fmt.Sprintf(dml,entity.Built,entity.Status,entity.Id)
 			_,err = iDb.Exec(dml)
 		default:
-			dml = "update category_split set status = ? where id = ?"
-			_,err = iDb.Exec(dml,entity.Status,entity.Id)
+			dml = "update category_split set built=%v, status=? where id = ?"
+			_,err = iDb.Exec(dml,entity.Built,entity.Status,entity.Id)
 		}
 		if err != nil {
 			err = fmt.Errorf("could not update category_split row where id=%v: %v",entity.Id.Value(), err)

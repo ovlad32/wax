@@ -82,18 +82,14 @@ func (c rowCategoryData) Copy(data [][]byte) {
 
 func (c rowCategoryData) Equal(data [][]byte) bool{
 
+
 	if len(data) != len(c) {
 		return false
 	}
 
 	for index := range c {
-		if len(c[index]) != len(data[index]){
+		if !bytes.Equal(c[index],data[index]) {
 			return false
-		}
-		for position := range c[index]{
-			if c[index][position] != data[index][position] {
-				return false
-			}
 		}
 	}
 	return true
@@ -209,6 +205,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 	categorySplit :=&dto.CategorySplitType{
 		Table: targetTable,
 		CategorySplitColumns: make(dto.CategorySplitColumnListType,0,len(splitColumns)),
+		Status:"n",
 	}
 
 	repository.PutCategorySplit(categorySplit)
@@ -283,6 +280,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 				return err
 			}
 			if flushed {
+				currentBufferedRowData.CategorySplitFileType.Id = nullable.NullInt64{}
 				err = repository.PutCategorySplitFile(currentBufferedRowData.CategorySplitFileType)
 				if err != nil {
 					return err
@@ -315,6 +313,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 			var flushed bool
 			flushed, err = currentBufferedRowData.WriteDumpLine(original)
 			if flushed {
+				currentBufferedRowData.CategorySplitFileType.Id = nullable.NullInt64{}
 				err = repository.PutCategorySplitFile(currentBufferedRowData.CategorySplitFileType)
 				if err != nil {
 					return err
@@ -355,6 +354,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 			//TODO: err!
 			return err
 		}
+		currentBufferedRowData.CategorySplitFileType.Id = nullable.NullInt64{}
 		repository.PutCategorySplitFile(currentBufferedRowData.CategorySplitFileType)
 		if err != nil {
 			//TODO: err!

@@ -7,6 +7,7 @@ import (
 type CategorySplitType struct {
 	Id nullable.NullInt64
 	TableInfoId nullable.NullInt64
+	Built bool
 	Status string
 	Table *TableInfoType
 	CategorySplitColumns CategorySplitColumnListType

@@ -1,22 +1,22 @@
 package main
 
 import (
-	"context"
 	"flag"
-	"github.com/goinggo/tracelog"
-	"github.com/ovlad32/wax/hearth"
-	"github.com/ovlad32/wax/hearth/dto"
-	"github.com/ovlad32/wax/hearth/handling"
-	"github.com/ovlad32/wax/hearth/process/index"
-	"github.com/ovlad32/wax/hearth/repository"
-	"log"
 	"math"
+	"github.com/goinggo/tracelog"
 	"os"
+	"log"
 	"runtime"
-	"runtime/pprof"
-	"github.com/ovlad32/wax/hearth/process/categorysplit"
-	"path"
+	"github.com/ovlad32/wax/hearth/handling"
 	"fmt"
+	"github.com/ovlad32/wax/hearth/repository"
+	"github.com/ovlad32/wax/hearth"
+	"github.com/ovlad32/wax/hearth/process/index"
+	"github.com/ovlad32/wax/hearth/process/categorysplit"
+	"github.com/ovlad32/wax/hearth/dto"
+	"context"
+	"path"
+	"runtime/pprof"
 )
 
 var packageName = "main"
@@ -78,6 +78,7 @@ func test1() {
 			DumperConfig: hearth.AdaptDataReaderConfig(config),
 			BitsetPath:       config.BitsetPath,
 		},
+
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -103,6 +104,7 @@ func test1() {
 	splitter,err  :=categorysplit.NewCategorySplitter(&categorysplit.CategorySplitConfigType{
 		DumpReaderConfig: hearth.AdaptDataReaderConfig(config),
 		PathToSliceDirectory: config.BitsetPath,
+		MaxRowCountPerFile:10000,
 	})
 	if err != nil {
 		err = fmt.Errorf("could not do category split for table %v: %v",table,err)
@@ -116,5 +118,5 @@ func test1() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 }
+

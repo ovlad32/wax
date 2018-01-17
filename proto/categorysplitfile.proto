@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package categorysplit;
+
+message CategorySplitFile {
+  int64 table_id = 1;
+  int64 file_id = 2;
+  int64 lines = 3;
+  int64 startLine = 4;
+  bytes data = 5;
+}
+
+
+

@@ -2,7 +2,6 @@ package dto
 
 import (
 	"fmt"
-	"github.com/ovlad32/wax/hearth/misc"
 )
 
 func (t TableInfoType) String() (result string) {

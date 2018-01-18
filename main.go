@@ -17,6 +17,9 @@ import (
 	"context"
 	"path"
 	"runtime/pprof"
+	"github.com/ovlad32/wax/hearth/process/sort"
+	"github.com/ovlad32/wax/hearth/misc"
+	"github.com/ovlad32/wax/hearth/process/search"
 )
 
 var packageName = "main"
@@ -73,13 +76,6 @@ func test1() {
 		log.Fatal(err)
 	}
 
-	indexer, err := index.NewIndexer(
-		&index.BitsetIndexConfigType{
-			DumperConfig: hearth.AdaptDataReaderConfig(config),
-			BitsetPath:       config.BitsetPath,
-		},
-
-	)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -89,34 +85,81 @@ func test1() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	_ = indexer
-	/*
-	err = index.BuildBitsets(
-		ctx,
-		dto.NewBitSetContents(dto.HashContent),
-		table,
-	)
+	if false {
+		indexer, err := index.NewIndexer(
+			&index.BitsetIndexConfigType{
+				DumperConfig: hearth.AdaptDataReaderConfig(config),
+				BitsetPath:   config.BitsetPath,
+			},
+		)
+		err = indexer.BuildBitsets(
+			ctx,
+			dto.NewBitSetContents(dto.HashContent),
+			config.AstraDumpPath,
+			table,
+		)
 
-	if err != nil {
-		log.Fatal(err)
-	}*/
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	splitter,err  :=categorysplit.NewCategorySplitter(&categorysplit.CategorySplitConfigType{
-		DumpReaderConfig: hearth.AdaptDataReaderConfig(config),
-		PathToSliceDirectory: config.BitsetPath,
-		MaxRowCountPerFile:10000,
+		splitter, err := categorysplit.NewCategorySplitter(&categorysplit.CategorySplitConfigType{
+			DumpReaderConfig:     hearth.AdaptDataReaderConfig(config),
+			PathToSliceDirectory: config.BitsetPath,
+			MaxRowCountPerFile:   10000,
+		})
+		if err != nil {
+			err = fmt.Errorf("could not do category split for table %v: %v", table, err)
+			log.Fatal(err)
+		}
+		err = splitter.SplitFile(
+			ctx,
+			path.Join(config.AstraDumpPath, table.PathToFile.String()),
+			dto.ColumnInfoListType{table.Columns[7]}, //7:2
+		)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	dumpConfig := hearth.AdaptDataReaderConfig(config)
+	dumpConfig.GZip = false
+	sorter := sort.NewColumnSorter(&sort.ColumnSorterConfigType{
+		PathToSortedSliceDirectory: "./Sorted",
+		DumpReaderConfig:  dumpConfig,
 	})
-	if err != nil {
-		err = fmt.Errorf("could not do category split for table %v: %v",table,err)
-		log.Fatal(err)
-	}
-	err = splitter.SplitFile(
-		ctx,
-		path.Join(config.AstraDumpPath,table.PathToFile.String()),
-		dto.ColumnInfoListType{table.Columns[7]}, //7:2
+
+	err = sorter.SortByColumn(ctx,
+		"C:/home/vlad/data.253.4/BINDATA/111/175692/175807/144764187",
+		1000,
+		misc.PositionFlagsAs(misc.PositionOn, len(table.ColumnList()), []int{8}...),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
-}
 
+	searcher,_ := search.NewColumnSearcher(
+	 &search.ColumnSearcherConfigType{
+		DumpReaderConfig:*dumpConfig,
+	})
+	
+	sortedFile := "C:/home/vlad/data.253.4/BINDATA/111/175692/175807/144764187.sorted"
+	s1,s2,s3:= searcher.Search(ctx,sortedFile,true,8,8,[][]byte{
+		[]byte("121185"),
+		[]byte("999-83-7009"),
+		[]byte("35183"),
+		[]byte("1997-09-10 00:00:00.0"),
+		[]byte("2003.8231.8275.4524"),
+		[]byte("LONG TERM"),
+		[]byte("1293200"),
+		[]byte("USD"),
+		[]byte("1998-05-25 00:00:00.0"),
+		[]byte("LAND"),
+		[]byte("6324500"),
+		[]byte("USD"),
+	},
+	)
+	fmt.Println(s1)
+	fmt.Println(s2)
+	fmt.Println(s3)
+}

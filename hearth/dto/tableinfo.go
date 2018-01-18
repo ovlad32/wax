@@ -21,8 +21,3 @@ type TableInfoType struct {
 }
 
 type TableInfoArrayType []*TableInfoType
-
-type TableInterface interface {
-	ColumnListInterface
-	Reference() *TableInfoType
-}

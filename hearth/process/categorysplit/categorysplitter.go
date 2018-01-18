@@ -16,6 +16,7 @@ import (
 	"github.com/ovlad32/wax/hearth/handling/nullable"
 	"runtime"
 	"time"
+	"github.com/ovlad32/wax/hearth/misc"
 )
 
 type CategorySplitConfigType struct {
@@ -232,7 +233,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 
 	tableColumnCount := len(tableColumns)
 
-	splitPositions, err := targetTable.ColumnPositionFlags(splitColumns,dto.ColumnPositionOn)
+	splitPositions, err := splitColumns.ColumnPositionFlagsAs(misc.PositionOn)
 
 	dumperConfig := splitter.config.DumpReaderConfig
 

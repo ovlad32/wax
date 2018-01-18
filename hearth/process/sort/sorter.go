@@ -5,6 +5,7 @@ import (
 	"sort"
 	"github.com/ovlad32/wax/hearth/process/dump"
 	"github.com/ovlad32/wax/hearth/misc"
+	"os"
 )
 
 type ColumnSorterConfigType struct {
@@ -15,35 +16,52 @@ type ColumnSorterType struct {
 	config ColumnSorterConfigType
 }
 
-type sortingColumnAddressType struct {
-	offset, length uint16
+//type sortingColumnAddressType struct {
+	//start, finish uint16
+//}
+
+//type sortingColumnAddressListType []sortingColumnAddressType;
+type sortableLineType struct {
+	line []byte
+	start []uint16
+	finish []uint16
 }
 
-type sortingColumnAddressListType []sortingColumnAddressType;
-type sortableBufferType [][]byte
-
 type SortByColumnParamInterface interface {
-	ColumnCount() int
+	TableColumnCount() int
 	SortingColumnIndexes() []int
 	RowCount() uint64
 }
 
-
-func (sorter *ColumnSorterType) SortByColumn(ctx context.Context,pathToFile string,params SortByColumnParamInterface ) (err error){
-	var dumpColumnCount = params.ColumnCount()
-	var dumpRowCount = params.RowCount()
-
-	var sortingIndexes []bool  = misc.PositionFlagsAs(true,dumpColumnCount, params.SortingColumnIndexes()...)
-	var sortingColumnCount int = len(sortingIndexes)
-
-
-	var addresses []sortingColumnAddressListType = make([]sortingColumnAddressListType,sortingColumnCount);
-	for index:=0; index<sortingColumnCount; index++ {
-		addresses[index] = make(sortingColumnAddressListType,0,dumpRowCount)
+func NewColumnSorter(cfg *ColumnSorterConfigType) (result *ColumnSorterType) {
+	result = &ColumnSorterType{
+		config:*cfg,
 	}
 
-	var maxLenIndexes []uint16 = make([]uint16,dumpColumnCount)
-	var sortableBuffer = make(sortableBufferType ,0,dumpRowCount)
+	return result
+}
+
+func (sorter *ColumnSorterType) SortByColumn(
+		ctx context.Context,
+		pathToDumpFile string,
+		dumpRowCount uint64,
+		sortingColumnPositions []bool,
+		) (err error) {
+	var dumpColumnCount= len(sortingColumnPositions)
+	sortingColumnCount := 0
+	for _, flag := range sortingColumnPositions {
+		if flag {
+			sortingColumnCount ++
+		}
+	}
+
+	/*var addresses []sortingColumnAddressListType = make([]sortingColumnAddressListType,sortingColumnCount);
+	for index:=0; index<sortingColumnCount; index++ {
+		addresses[index] = make(sortingColumnAddressListType,0,dumpRowCount)
+	}*/
+
+	var maxLenIndexes []uint16 = make([]uint16, dumpColumnCount)
+	var sortableLines= make([]sortableLineType, 0, dumpRowCount)
 
 	var addressIndex int = 0
 	processRowContent := func(
@@ -53,57 +71,137 @@ func (sorter *ColumnSorterType) SortByColumn(ctx context.Context,pathToFile stri
 		rowFields [][]byte,
 		original []byte,
 	) (err error) {
-		var columnOffset uint16= 0
+		var columnOffset uint16 = 0
+		addressIndex = 0
+		sortableLine := sortableLineType{
+			start:  make([]uint16, 0, sortingColumnCount),
+			finish: make([]uint16, 0, sortingColumnCount),
+			line:   make([]byte, len(original)),
+		}
+		copy(sortableLine.line, original)
+
 		for index := range rowFields {
-			len16 := uint16(len(rowFields))
+			len16 := uint16(len(rowFields[index]))
 			if maxLenIndexes[index] < len16 {
 				maxLenIndexes[index] = len16
 			}
-			columnOffset  += len16 + 1
-			if !sortingIndexes[index] {
-				continue
+			if sortingColumnPositions[index] {
+				sortableLine.start = append(sortableLine.start, columnOffset)
+				sortableLine.finish = append(sortableLine.finish, columnOffset+len16)
+				//fmt.Println(string(original[columnOffset:columnOffset+len16]))
 			}
-			addressIndex++
-			addresses[addressIndex] = append(addresses[addressIndex],
-				sortingColumnAddressType{
-					offset: columnOffset,
-					length: uint16(len(rowFields[index])),
-				})
-
+			columnOffset += len16 + 1
 		}
-		sortableBuffer = append(sortableBuffer,original)
+		sortableLines = append(sortableLines, sortableLine)
 		return
 	}
 
-	for index:=0; index < sortingColumnCount; index++ {
-		sort.Slice(sortableBuffer,
-			func(i, j int) bool {
-				startI := addresses[index][i].offset
-				finishI := startI + addresses[index][i].length
-
-				startJ := addresses[index][i].offset
-				finishJ := startI + addresses[index][i].length
-
-				buffI := sortableBuffer[i][startI:finishI]
-				buffJ := sortableBuffer[j][startJ:finishJ]
-				return misc.ByteBufferLess(buffI,buffJ)
-			})
-	}
-
 	dumperConfig := sorter.config.DumpReaderConfig
-	dumper, err  := dump.NewDumper(dumperConfig)
+	dumper, err := dump.NewDumper(dumperConfig)
 	if err != nil {
 		return
 	}
 
 	linesRead, err := dumper.ReadFromFile(
 		ctx,
-		pathToFile,
+		pathToDumpFile,
 		processRowContent,
 	)
+	if err != nil {
+		return err
+	}
+	_ = linesRead
+	//for _, l := range sortableLines {
+	//	fmt.Println(string(l.line[l.start[0]:l.finish[0]]))
+	//}
+	//
+	//return
 
+	//separator := []byte{dumper.Config().ColumnSeparator}
+	sort.Slice(sortableLines,
+		func(i, j int) bool {
+			if sortingColumnCount == 1 {
+				for index := 0; index < sortingColumnCount; index++ {
+					startI := sortableLines[i].start[index]
+					finishI := sortableLines[i].finish[index]
+
+					startJ := sortableLines[j].start[index]
+					finishJ := sortableLines[j].finish[index]
+
+					buffI := sortableLines[i].line[startI:finishI]
+					buffJ := sortableLines[j].line[startJ:finishJ]
+					result := misc.ByteBufferLess(buffI, buffJ) < 0
+					return result
+				}
+			} else {
+				/*var buffI,BuffJ []byte
+				var LengthI,LengthJ uint16
+				for index := 0; index < sortingColumnCount; index++ {
+					LengthI = sortableLines[i].finish[index] - sortableLines[i].start[index] + 1
+					LengthJ = sortableLines[j].finish[index] - sortableLines[j].start[index] + 1
+				}
+				buffI = make([]byte,LengthI)
+				buffJ = make([]byte,LengthJ)
+				for index := 0; index < sortingColumnCount; index++ {
+					bytes.Join(sortableLines[i].line[startI:finishI])
+					startI := sortableLines[i].start[index]
+					finishI := sortableLines[i].finish[index]
+
+					startJ := sortableLines[j].start[index]
+					finishJ := sortableLines[j].finish[index]
+
+					buffI := sortableLines[i].line[startI:finishI]
+					buffJ := sortableLines[j].line[startJ:finishJ]
+					result := misc.ByteBufferLess(buffI, buffJ)
+					//fmt.Println(string(buffI), string(buffJ),result)
+					return result*/
+				}
+			return false
+		},
+	)
+
+	file, _ := os.Create("./dump")
+
+	for index := range sortableLines {
+		_, err = file.Write(sortableLines[index].line)
+	}
+	file.Close()
+
+	if false {
+
+		spaceLen := uint16(0)
+		for _, value := range maxLenIndexes {
+			if value > spaceLen {
+				spaceLen = value
+			}
+		}
+		separator := dumper.Config().ColumnSeparator
+		space := make([]byte, spaceLen+1)
+		space[spaceLen] = misc.LineFeedByte
+		file, _ := os.Create("./dump_square")
+
+		for index := range sortableLines {
+			fields := misc.SplitDumpLine(sortableLines[index].line, separator)
+			var written int
+			for fieldIndex := range fields {
+				written, err = file.Write(fields[fieldIndex])
+				if err != nil {
+					return
+				}
+				if fieldIndex == dumpColumnCount-1 {
+					file.Write(space[spaceLen-(maxLenIndexes[fieldIndex]-uint16(written)):])
+				} else {
+					file.Write(space[:maxLenIndexes[fieldIndex]-uint16(written)])
+				}
+			}
+		}
+		file.Close()
+	} else {
+
+	}
 	return
 }
+
 
 
 

@@ -123,7 +123,12 @@ func (c ColumnInfoType) TableInfoReference() (*TableInfoType) {
 func (c ColumnInfoListType) ColumnList() (ColumnInfoListType){
 	return c
 }
-
+func (c ColumnInfoListType) TableInfoReference() (*TableInfoType){
+	if c == nil || len(c)==0 {
+		return nil
+	}
+	return c[0].TableInfo
+}
 
 func (c ColumnInfoListType) ColumnPositionFlagsAs(flag misc.PositionBitType) (result []bool, err error) {
 	if c == nil {

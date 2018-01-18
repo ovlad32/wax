@@ -10,6 +10,7 @@ import (
 	"time"
 	"strings"
 	"path"
+	"github.com/ovlad32/wax/hearth/misc"
 )
 
 
@@ -79,7 +80,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 	targetTableColumns:= targetTable.ColumnList()
 	targetTableColumnCount := len(targetTableColumns)
 
-	offPostitions,err := targetTable.ColumnPositionFlags(processingColumns,dto.ColumnPositionOff)
+	offPostitions,err := processingColumns.ColumnPositionFlagsAs(misc.PositionOff)
 
 
 	dumperConfig := indexer.config.DumperConfig
@@ -191,12 +192,12 @@ func (indexer *BitsetIndexerType) buildBitsets(
 	return err
 }
 
-func (indexer BitsetIndexerType) BuildBitsetsForTable(ctx context.Context,
+func (indexer BitsetIndexerType) BuildBitsets(ctx context.Context,
 	bitsetContent dto.BitsetContentArrayType,
 	pathToDumpDirectory string,
-	targetTableInterface dto.TableInterface) (err error) {
+	targetTableInterface dto.ColumnListInterface) (err error) {
 
-	targetTable := targetTableInterface.Reference()
+	targetTable := targetTableInterface.TableInfoReference()
 
 	err = indexer.buildBitsets(ctx,
 		path.Join(pathToDumpDirectory,targetTable.PathToFile.Value()),
@@ -215,18 +216,4 @@ func (indexer BitsetIndexerType) BuildBitsetsForTable(ctx context.Context,
 	}
 
 	return err
-}
-
-func (indexer *BitsetIndexerType) BuildBitsetsForColumns(
-	ctx context.Context,
-	pathToDumpFile string,
-	bitsetContent dto.BitsetContentArrayType,
-	targetColumns dto.ColumnListInterface,
-) (err error) {
-	return indexer.buildBitsets(
-		ctx,
-		pathToDumpFile,
-		bitsetContent,
-		targetColumns,
-	)
 }

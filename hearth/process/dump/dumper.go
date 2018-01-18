@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"github.com/ovlad32/wax/hearth/handling"
+	"github.com/ovlad32/wax/hearth/misc"
 )
 
 
@@ -46,8 +47,8 @@ func NewDumper(cfg *DumperConfigType) (dumper *DumperType,err error){
 	return &DumperType{
 		config: *cfg,
 	},nil
-
 }
+
 
 type errorAbortedByType struct {
 	error
@@ -57,9 +58,9 @@ func (e errorAbortedByType) Error() (string) {
 	return e.message
 }
 
-type errorAbortedByRowProcessing errorAbortedByType
+type ErrorAbortedByRowProcessing errorAbortedByType
 
-type errorAbortedByContext errorAbortedByType
+type ErrorAbortedByContext errorAbortedByType
 
 type RowProcessingFuncType func(context.Context, uint64, uint64,[][]byte,[]byte) (error)
 
@@ -75,7 +76,7 @@ func IsErrorAbortedByRowProcessing(err error) bool {
 	if err == nil {
 		return false;
 	}
-	_, typeOf := err.(errorAbortedByRowProcessing)
+	_, typeOf := err.(ErrorAbortedByRowProcessing)
 	return typeOf;
 }
 
@@ -83,7 +84,7 @@ func IsErrorByContext(err error) bool {
 	if err == nil {
 		return false;
 	}
-	_, typeOf := err.(errorAbortedByContext)
+	_, typeOf := err.(ErrorAbortedByContext)
 	return typeOf;
 }
 
@@ -121,6 +122,9 @@ func validateDumperConfig(cfg *DumperConfigType) (err error) {
 	}
 
 	return
+}
+func (dumper *DumperType) Config() (DumperConfigType){
+	return dumper.config
 }
 
 
@@ -192,7 +196,7 @@ func (dumper *DumperType) ReadFromStream(
 	for {
 		select {
 		case <-ctx.Done():
-			err = &errorAbortedByContext{}
+			err = &ErrorAbortedByContext{}
 			return
 		default:
 			var originalLine []byte
@@ -208,15 +212,21 @@ func (dumper *DumperType) ReadFromStream(
 			if dumper.config.StartFromLine == nil || lineNumber >= dumper.config.StartFromLine.Line{
 
 				originalLineLength := len(originalLine)
-				strippedLine := originalLine
-				if strippedLine[originalLineLength-1] == dumper.config.LineSeparator {
-					strippedLine = strippedLine[:originalLineLength-1]
-				}
-				if strippedLine[originalLineLength-2] == x0D[0] {
-					strippedLine = strippedLine[:originalLineLength-2]
-				}
+
+				lineColumns := misc.SplitDumpLine(originalLine,dumper.config.ColumnSeparator)
+				if false {
+					originalLineLength := len(originalLine)
+					strippedLine := originalLine
+					if strippedLine[originalLineLength-1] == dumper.config.LineSeparator {
+						strippedLine = strippedLine[:originalLineLength-1]
+					}
+					if strippedLine[originalLineLength-2] == x0D[0] {
+						strippedLine = strippedLine[:originalLineLength-2]
+					}
 
 				lineColumns := bytes.Split(strippedLine,columnSeparatorBytes )
+					_ = lineColumns
+				}
 
 				err = rowProcessingFunc(ctx, lineNumber, streamPosition, lineColumns, originalLine)
 

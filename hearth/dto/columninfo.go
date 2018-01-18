@@ -37,4 +37,5 @@ type ColumnInfoListType []*ColumnInfoType
 
 type ColumnListInterface interface {
 	ColumnList() ColumnInfoListType
+	TableInfoReference() *TableInfoType
 }

@@ -3,9 +3,8 @@ package repository
 import (
 	"database/sql"
 	"fmt"
-	"github.com/goinggo/tracelog"
 	_ "github.com/lib/pq"
-	"log"
+	"github.com/sirupsen/logrus"
 )
 
 var packageName string = "repository"
@@ -30,39 +29,30 @@ type RepositoryConfigType struct {
 	DatabaseName string
 	Host         string
 	Port         string
+	Logger       logrus.Logger
 }
 
 func InitRepository(conf *RepositoryConfigType) (idb *sql.DB, err error) {
-	var funcName = "InitRepository"
-	tracelog.Started(packageName, funcName)
+	func() {
+		idb, err = sql.Open(
+			"postgres",
+			fmt.Sprintf(
+				"user=%v password=%v dbname=%v host=%v port=%v timeout=10 sslmode=disable ",
+				conf.Login, conf.Password, conf.DatabaseName, conf.Host, conf.Port,
+			),
+		)
 
-	idb, err = sql.Open(
-		"postgres",
-		fmt.Sprintf(
-			"user=%v password=%v dbname=%v host=%v port=%v timeout=10 sslmode=disable ",
-			conf.Login, conf.Password, conf.DatabaseName, conf.Host, conf.Port,
-		),
-	)
+		if err != nil {
+			err = fmt.Errorf("could not connect to backend DB: %v", err)
+			return
+		}
+		iDb = idb
+	}()
 
 	if err != nil {
-		err = fmt.Errorf("preparing connectivity to backend DB: %v", err)
-		tracelog.Error(err, packageName, funcName)
-		return
+		conf.Logger.Errorf("could not initialize backend DB Repository: %v",err)
 	}
 
-	//ctx := context.Background()
-	//c,err := idb2.Conn(ctx)
-	if err!=nil {
-		log.Fatal(err)
-	}
-
-	//c.ExecContext(ctx,"set mode POSTGRESQL")
-	if err!=nil{
-		log.Fatal(err)
-	}
-
-	iDb = idb
-	tracelog.Completed(packageName, funcName)
 	return
 }
 
@@ -78,16 +68,3 @@ func MakeWhereArgsNum(n int) (result []interface{}){
 func MakeWhereFunc() (result whereFunc) {
 	return func() string { return "" }
 }
-
-/*
-func db() *sql.DB {
-
-	idb2, err := sql.Open(
-		"postgres",
-		fmt.Sprintf(
-			"user=edm password=edmedm dbname=edm host=localhost port=26257 sslmode=disable "),
-	)
-
-
-}
-*/

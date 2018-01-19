@@ -20,6 +20,8 @@ import (
 	"github.com/ovlad32/wax/hearth/process/sort"
 	"github.com/ovlad32/wax/hearth/misc"
 	"github.com/ovlad32/wax/hearth/process/search"
+	"github.com/sirupsen/logrus"
+	"github.com/ovlad32/wax/hearth/appnode"
 )
 
 var packageName = "main"
@@ -30,6 +32,11 @@ var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 var pathToConfigFile = flag.String("configfile", "./config.json", "path to config file")
 var argMetadataIds = flag.String("metadata_id", string(-math.MaxInt64), "")
 var argWorkflowIds = flag.String("workflow_id", string(-math.MaxInt64), "")
+
+var applicationRole = flag.String("role", "", "")
+var masterNodeHost  = flag.String("masterHost", "localhost", "")
+var masterNodePort  = flag.String("masterPort", "9100", "")
+
 
 func main() {
 	flag.Parse()
@@ -58,8 +65,40 @@ func main() {
 		}
 		defer f.Close()
 	}
+	var err error
 
-	test1()
+	config, err := handling.ReadConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	config.Logger =  logrus.New()
+
+	_, err = repository.InitRepository(hearth.AdaptRepositoryConfig(config))
+	if err != nil {
+		log.Fatal(err)
+	}
+	node,err := appnode.NewApplicationNode(
+		&appnode.ApplicationNodeConfigType{
+			Log:config.Logger,
+			Port:9100,
+		},
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if applicationRole == nil || *applicationRole == "test" {
+		test1()
+	} else if *applicationRole == "master" {
+		node.StartMasterNode()
+	} else if *applicationRole == "slave" {
+		node.StartSlaveNode("123",*masterNodeHost,*masterNodePort)
+	} else {
+		log.Fatal("parameter role '%v' is not recognized")
+	}
+
+
 
 }
 

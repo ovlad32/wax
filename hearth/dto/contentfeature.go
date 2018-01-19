@@ -6,6 +6,9 @@ import (
 )
 
 type ContentFeatureType struct {
+	Id              nullable.NullInt64
+	SourceId        nullable.NullInt64
+	SourceType      string
 	Column          *ColumnInfoType
 	Key             string
 	ByteLength      int

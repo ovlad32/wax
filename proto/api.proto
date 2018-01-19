@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package grpcservice;
+
+//import "appnode.proto";
+//import "categorysplitfile.proto";
+
+
+service nodeManager {
+  rpc RegisterNode(RegisterNodeRequest) returns(RegisterNodeResponse) {}
+  rpc HeartBeatNode(HeartBeatRequest) returns(HeartBeatResponse) {}
+}
+
+message RegisterNodeRequest {
+  string hostName = 1;
+  string localAddress = 2;
+  string nodeId = 3;
+  string standaloneId = 4;
+}
+
+message RegisterNodeResponse {
+  string nodeId = 1;
+  string errorMessage = 2;
+}
+
+message HeartBeatRequest {
+  string nodeId = 1;
+  string status = 2;
+}
+
+message HeartBeatResponse {
+  string nodeId = 1;
+  string lastHeartBeat = 2;
+}
+
+

@@ -3,7 +3,6 @@ package dto
 import (
 	"context"
 	"fmt"
-	"github.com/goinggo/tracelog"
 	"github.com/ovlad32/wax/hearth/handling"
 	"github.com/ovlad32/wax/hearth/handling/nullable"
 	"math"
@@ -12,7 +11,7 @@ import (
 )
 
 const VarcharMax = 4000
-
+const ContentSourceType = ""
 type BitsetContentType int
 
 const (
@@ -141,15 +140,11 @@ func (feature ContentFeatureType) String() (result string) {
 }
 
 func (feature ContentFeatureType) BitsetFileName(suffix BitsetContentType) (fileName string, err error) {
-	funcName := "featureType.HashBitsetFileName"
-	tracelog.Started(packageName, funcName)
 	fileName = fmt.Sprintf("%v.%v.%v.bitset",
 		feature.Column.Id.String(),
 		feature.Key,
 		suffix,
 	)
-
-	tracelog.Completed(packageName, funcName)
 
 	return fileName, nil
 }
@@ -181,7 +176,7 @@ func (w contentFeatureBitSetWrapperType) BitSet() (handling.BitsetInterface, err
 
 func (w contentFeatureBitSetWrapperType) FileName() (string, error) {
 	return fmt.Sprintf("%v.%v.%v.bitset",
-		w.Column.Id.String(),
+		w.Id.String(),
 		w.Key,
 		w.bitsetContentType,
 	), nil

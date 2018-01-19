@@ -6,6 +6,7 @@ import (
 	"github.com/ovlad32/wax/hearth/handling/sparsebitset"
 	"os"
 	"path/filepath"
+	"github.com/sirupsen/logrus"
 )
 type BackendDatabaseType struct {
 	Type     string `json:"type"`
@@ -41,6 +42,9 @@ type AstraConfigType struct {
 	MemUsageTickTimeSec     int    `json:"memory-usage-tick-time-sec"`
 	LogBaseFile             string `json:"log-base-file"`
 	LogBaseFileKeepDay      int    `json:"log-base-file-keep-day"`
+	// Runtime references
+	Logger *logrus.Logger
+
 }
 
 func ReadConfig() (result *AstraConfigType, err error) {

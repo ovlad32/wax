@@ -64,7 +64,7 @@ func PutCategorySplit(entity *dto.CategorySplitType) (err error){
 			dml = fmt.Sprintf(dml,entity.Built,entity.Status,entity.Id)
 			_,err = iDb.Exec(dml)
 		default:
-			dml = "update category_split set built=%v, status=? where id = ?"
+			dml = "update category_split set built=?, status=? where id = ?"
 			_,err = iDb.Exec(dml,entity.Built,entity.Status,entity.Id)
 		}
 		if err != nil {

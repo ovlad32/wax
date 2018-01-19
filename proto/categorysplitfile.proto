@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package categorysplit;
+package grpcservice;
 
 message CategorySplitFile {
   int64 table_id = 1;

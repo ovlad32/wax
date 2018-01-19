@@ -120,43 +120,22 @@ func (sorter *ColumnSorterType) SortByColumn(
 	//separator := []byte{dumper.Config().ColumnSeparator}
 	sort.Slice(sortableLines,
 		func(i, j int) bool {
-			if sortingColumnCount == 1 {
-				for index := 0; index < sortingColumnCount; index++ {
-					startI := sortableLines[i].start[index]
-					finishI := sortableLines[i].finish[index]
+			var result int
+			for index := 0; index < sortingColumnCount; index++ {
+				startI := sortableLines[i].start[index]
+				finishI := sortableLines[i].finish[index]
 
-					startJ := sortableLines[j].start[index]
-					finishJ := sortableLines[j].finish[index]
+				startJ := sortableLines[j].start[index]
+				finishJ := sortableLines[j].finish[index]
 
-					buffI := sortableLines[i].line[startI:finishI]
-					buffJ := sortableLines[j].line[startJ:finishJ]
-					result := misc.ByteBufferLess(buffI, buffJ) < 0
-					return result
+				buffI := sortableLines[i].line[startI:finishI]
+				buffJ := sortableLines[j].line[startJ:finishJ]
+				result = misc.ByteBufferLess(buffI, buffJ)
+				if result != 0 {
+					break;
 				}
-			} else {
-				/*var buffI,BuffJ []byte
-				var LengthI,LengthJ uint16
-				for index := 0; index < sortingColumnCount; index++ {
-					LengthI = sortableLines[i].finish[index] - sortableLines[i].start[index] + 1
-					LengthJ = sortableLines[j].finish[index] - sortableLines[j].start[index] + 1
-				}
-				buffI = make([]byte,LengthI)
-				buffJ = make([]byte,LengthJ)
-				for index := 0; index < sortingColumnCount; index++ {
-					bytes.Join(sortableLines[i].line[startI:finishI])
-					startI := sortableLines[i].start[index]
-					finishI := sortableLines[i].finish[index]
-
-					startJ := sortableLines[j].start[index]
-					finishJ := sortableLines[j].finish[index]
-
-					buffI := sortableLines[i].line[startI:finishI]
-					buffJ := sortableLines[j].line[startJ:finishJ]
-					result := misc.ByteBufferLess(buffI, buffJ)
-					//fmt.Println(string(buffI), string(buffJ),result)
-					return result*/
-				}
-			return false
+			}
+			return result<0
 		},
 	)
 

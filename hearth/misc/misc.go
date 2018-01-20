@@ -67,3 +67,13 @@ func ByteBufferLess(buff1, buff2 []byte) int {
 	return  size1 - size2
 }
 
+func Iif( a bool, ifTrue string, ifFalse string) string {
+	if a {
+		return ifTrue
+	} else {
+		return ifFalse
+	}
+}
+
+
+

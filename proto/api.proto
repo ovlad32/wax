@@ -15,7 +15,6 @@ message RegisterNodeRequest {
   string hostName = 1;
   string localAddress = 2;
   string nodeId = 3;
-  string standaloneId = 4;
 }
 
 message RegisterNodeResponse {
@@ -31,6 +30,7 @@ message HeartBeatRequest {
 message HeartBeatResponse {
   string nodeId = 1;
   string lastHeartBeat = 2;
+  string errorMessage = 3;
 }
 
 

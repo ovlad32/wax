@@ -8,7 +8,7 @@ import (
 
 type ApplicationNodeConfigType struct {
 	Port int
-	Log logrus.FieldLogger
+	Log *logrus.Logger
 }
 type ApplicationNodeType struct {
 	config ApplicationNodeConfigType

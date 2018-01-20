@@ -36,6 +36,7 @@ var argWorkflowIds = flag.String("workflow_id", string(-math.MaxInt64), "")
 var applicationRole = flag.String("role", "", "")
 var masterNodeHost  = flag.String("masterHost", "localhost", "")
 var masterNodePort  = flag.String("masterPort", "9100", "")
+var nodeIdDirectory  = flag.String("nodeIdDir", "nodeId", "")
 
 
 func main() {

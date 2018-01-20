@@ -9,6 +9,8 @@ import (
 	"time"
 	"github.com/sirupsen/logrus"
 	"github.com/ovlad32/wax/hearth/dto"
+	"github.com/ovlad32/wax/hearth/repository"
+	"strconv"
 )
 
 func (node *ApplicationNodeType) StartMasterNode() (err error){
@@ -24,7 +26,11 @@ func (node *ApplicationNodeType) StartMasterNode() (err error){
 	defer listener.Close()
 
 	gServer := grpc.NewServer()
-	pb.RegisterNodeManagerServer(gServer,masterEndPointType{})
+	pb.RegisterNodeManagerServer(gServer,&registerNodeServerType{
+		log:node.config.Log,
+		slaves:make(map[string]*slaveNodeInfoType),
+		},
+		)
 
 	node.config.Log.Info("master server started at %v....",backend)
 
@@ -33,50 +39,82 @@ func (node *ApplicationNodeType) StartMasterNode() (err error){
 	return
 }
 type slaveNodeInfoType struct {
-	dto.AppNodeType
+	*dto.AppNodeType
 	lastHeartBeat time.Time
 	counter uint64
 }
-
-type masterEndPointType struct {
-	hostName string
-	slaves map[string]*slaveNodeInfoType
-	log logrus.Logger
+func (s *slaveNodeInfoType) UpdateLastHeartbeatTime() {
+	s.lastHeartBeat = time.Now()
+	s.AppNodeType.LastHeartbeat = fmt.Sprintf("%v",s.lastHeartBeat)
 }
 
-func (s masterEndPointType) RegisterNode(ctx context.Context,request *pb.RegisterNodeRequest) (result *pb.RegisterNodeResponse,err error) {
-	result = &pb.RegisterNodeResponse{
+type registerNodeServerType struct {
+	slaves map[string]*slaveNodeInfoType
+	log *logrus.Logger
+}
 
-	}
+func (s *registerNodeServerType) RegisterNode(ctx context.Context,request *pb.RegisterNodeRequest) (result *pb.RegisterNodeResponse,err error) {
+	result = new(pb.RegisterNodeResponse)
+
 	if request.NodeId == "" {
-		if request.HostName == s.hostName {
-			if request.StandaloneId =="" {
-				result.ErrorMessage = "provide standalone id for standalone cluster"
-				logrus.Errorf(result.ErrorMessage)
-				return
-			}
-		} else {
-
-		}
 		slave := &slaveNodeInfoType{
 			lastHeartBeat:time.Now(),
 			}
-		slave.Hostname = 
+		slave.UpdateLastHeartbeatTime()
+		slave.Hostname = request.HostName
+		slave.Address = request.LocalAddress
+		slave.State = "A"
+		slave.Role = "SLAVE"
+		err = repository.PutAppNode(slave.AppNodeType)
+		if err != nil {
+			result.ErrorMessage = fmt.Sprintf("%v", err)
+			s.log.Error(err)
+			return result, nil
+		}
+		result.NodeId = strconv.FormatInt(slave.Id.Value(),10)
+		s.slaves[result.NodeId] = slave
+	} else {
+		if slave, found := s.slaves[request.NodeId]; found {
+			slave.UpdateLastHeartbeatTime()
+		} else {
+			var id int64
+			id, err = strconv.ParseInt(request.NodeId,10,64)
+			if err != nil {
+				result.ErrorMessage = fmt.Sprintf("%v",err)
+				s.log.Error(err)
+				return
+			}
+
+			slave.AppNodeType,err = repository.AppNameById(context.Background(), id)
+			if err != nil {
+				result.ErrorMessage = fmt.Sprintf("%v",err)
+				s.log.Error(err)
+				return
+			}
+			if slave.AppNodeType == nil {
+				result.ErrorMessage = fmt.Sprintf("Your NodeId {%v} is not recoginzed", request.NodeId)
+				s.log.Error(err)
+				return
+			}
+			slave.UpdateLastHeartbeatTime()
+			slave.Hostname = request.HostName
+			slave.Address = request.LocalAddress
+			slave.State = "A"
+			slave.Role = "SLAVE"
+			err = repository.PutAppNode(slave.AppNodeType)
+			if err != nil {
+				result.ErrorMessage = fmt.Sprintf("%v",err)
+				s.log.Error(err)
+				return result,nil
+			}
+			result.NodeId = strconv.FormatInt(slave.Id.Value(),10)
+			s.slaves[request.NodeId] = slave
+		}
 	}
-
-	if slave, found := s.slaves[request.NodeId]; found {
-		slave.lastHeartBeat = time.Now()
-		slave.counter++
-	}
-
-
-	fmt.Println(pb.RegisterNodeRequest{})
-
-
 	return
 }
 
-func (s *masterEndPointType) HeartBeatNode(ctx context.Context,request *pb.HeartBeatRequest) (result *pb.HeartBeatResponse,err error) {
+func (s *registerNodeServerType) HeartBeatNode(ctx context.Context,request *pb.HeartBeatRequest) (result *pb.HeartBeatResponse,err error) {
 	result = &pb.HeartBeatResponse{LastHeartBeat:"*"}
 	if request.Status == "HB" {
 		if request.NodeId == ""  {

@@ -5,6 +5,7 @@ import (
 	"github.com/ovlad32/wax/hearth/dto"
 	"github.com/ovlad32/wax/hearth/handling/nullable"
 	"context"
+	"github.com/ovlad32/wax/hearth/misc"
 )
 
 func AppNodeSeqId() (id int64, err error) {
@@ -16,8 +17,13 @@ func AppNodeSeqId() (id int64, err error) {
 }
 
 func PutAppNode(entity *dto.AppNodeType) (err error) {
-
 	var newOne bool
+	defer func(){
+		if err != nil {
+			err = fmt.Errorf("could not %v AppNode entity: %v",misc.Iif(newOne,"insert","update"),err)
+		}
+	}()
+
 	if !entity.Id.Valid() {
 		id, err := CategorySplitSeqId()
 		if err != nil {
@@ -109,7 +115,7 @@ func appNode(ctx context.Context, where whereFunc, args []interface{}) (result [
 
 
 
-func AppNameById(ctx context.Context, appNodeId int) (result *dto.AppNodeType, err error) {
+func AppNameById(ctx context.Context, appNodeId int64) (result *dto.AppNodeType, err error) {
 	args := MakeWhereArgs()
 	whereString := " WHERE ID = %v"
 	switch currentDbType {

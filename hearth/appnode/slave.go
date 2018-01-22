@@ -2,23 +2,26 @@ package appnode
 
 import (
 	"fmt"
-	"net"
 	pb "github.com/ovlad32/wax/hearth/grpcservice"
-	"google.golang.org/grpc"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
-	"time"
-	"os"
+	"google.golang.org/grpc"
 	"io/ioutil"
+	"net"
+	"os"
+	"os/signal"
 	"path"
+	"time"
 )
 
-func (node *ApplicationNodeType) StartSlaveNode(masterHost, masterPort,nodeIDDir string) (err error) {
+func (node *ApplicationNodeType) StartSlaveNode(masterHost, masterPort, nodeIDDir string) (err error) {
 	xContext := context.Background()
+	logger := node.config.Logger
 	var storedNodeId string
 	err = os.MkdirAll(nodeIDDir, 771)
 	if err != nil {
 		err = fmt.Errorf("could not create NodeId directory %v: %v", nodeIDDir, err)
-		node.config.Log.Fatal(err)
+		logger.Fatal(err)
 		return
 	}
 	nodeIdFile := path.Join(nodeIDDir, "nodeId")
@@ -27,8 +30,8 @@ func (node *ApplicationNodeType) StartSlaveNode(masterHost, masterPort,nodeIDDir
 		var nodeIdBytes []byte
 		nodeIdBytes, err = ioutil.ReadFile(nodeIdFile)
 		if !os.IsExist(err) {
-			err = fmt.Errorf("could not read registered Node Id from %v: %v", err)
-			node.config.Log.Fatal(err)
+			err = fmt.Errorf("could not read registered Node Id from %v: %v", nodeIdFile, err)
+			logger.Fatal(err)
 			return
 		}
 		if nodeIdBytes != nil && len(nodeIdBytes) > 0 {
@@ -44,66 +47,188 @@ func (node *ApplicationNodeType) StartSlaveNode(masterHost, masterPort,nodeIDDir
 		grpc.WithDialer(func(s string, duration time.Duration) (net.Conn, error) {
 			conn, err = net.DialTimeout("tcp", backend, duration)
 			if err != nil {
-				node.config.Log.Fatal("Could not connect to master at %v:%v", backend, err)
+				err = fmt.Errorf("could not connect to master at %v: %v", backend, err)
+				logger.Fatal(err)
 				return nil, err
 			}
-			fmt.Println(conn)
 			return conn, err
 		}),
 		grpc.WithInsecure(),
 	)
 
 	if err != nil {
-		node.config.Log.Fatal(err)
+		logger.Fatal(err)
 		return err
 	}
+	//TODO: Really close need?
 
-	defer gconn.Close()
-	client := pb.NewNodeManagerClient(gconn)
+	//defer gconn.Close()
+	client := pb.NewAppNodeManagerClient(gconn)
 
-	_, err = client.HeartBeatNode(
+	_, err = client.AppNodeHeartBeat(
 		xContext,
 		&pb.HeartBeatRequest{
 			Status: "Init",
 		},
 	)
 	if err != nil {
-		node.config.Log.Fatal(err)
+		logger.Fatal(err)
 		return err
 	}
 
-	request := &pb.RegisterNodeRequest{
+	request := &pb.AppNodeRegisterRequest{
 		NodeId:       storedNodeId,
 		LocalAddress: fmt.Sprintf("%v", conn.LocalAddr()),
 	}
 	request.HostName, err = os.Hostname()
 	if err != nil {
-		node.config.Log.Fatal(err)
+		logger.Fatal(err)
 		return err
 	}
 
-	response, err := client.RegisterNode(xContext, request)
+	response, err := client.AppNodeRegister(xContext, request)
 
 	if err != nil {
 		err = fmt.Errorf("could not call grpc:RegisterNode : %v", err)
-		node.config.Log.Fatal(err)
+		logger.Fatal(err)
 		return err
 	}
 	if response.ErrorMessage != "" {
-		err = fmt.Errorf("Message given from grpc:RegisterNode:%v", response.ErrorMessage)
-		node.config.Log.Fatal(err)
+		err = fmt.Errorf("message given from grpc:RegisterNode:%v", response.ErrorMessage)
+		logger.Fatal(err)
 		return err
 	}
 	if response.NodeId == "" {
 		err = fmt.Errorf("grpc:RegisterNode returned empty NodeId")
-		node.config.Log.Fatal(err)
+		logger.Fatal(err)
 		return err
 	}
 	err = ioutil.WriteFile(nodeIdFile, []byte(response.NodeId), 0644)
 	if err != nil {
 		err = fmt.Errorf("could not save the given node id to %v: %v ", nodeIdFile, err)
-		node.config.Log.Fatal(err)
+		logger.Fatal(err)
 		return err
 	}
+
+	heartBeatTicker := time.NewTicker(10 * time.Minute)
+	go func(
+		hbTicker *time.Ticker,
+		client pb.AppNodeManagerClient,
+		logger *logrus.Logger,
+		nodeId string,
+	) {
+		for {
+			select {
+			case _, opened := <-hbTicker.C:
+				if opened {
+					backgroundHeartBeatRoutine(client, logger, response.NodeId, "ALIVE")
+				}
+				return
+			}
+		}
+	}(heartBeatTicker, client, logger, response.NodeId)
+
+	listener, err := net.Listen("tcp", ":9101")
+	srv := grpc.NewServer()
+
+	pb.RegisterDataManagerServer(srv, &dataManagerServiceType{
+		logger:            node.config.Logger,
+		categorySlicePath: ".",
+		//TODO:
+	})
+
+	osSignal := make(chan os.Signal, 1)
+	signal.Notify(osSignal, os.Interrupt)
+	go func(hbTicker *time.Ticker, client pb.AppNodeManagerClient, server *grpc.Server, logger *logrus.Logger, NodeId string) {
+		for {
+			select {
+			case _ = <-osSignal:
+				hbTicker.Stop()
+				srv.GracefulStop()
+				backgroundHeartBeatRoutine(
+					client,
+					logger,
+					NodeId,
+					"INTERRUPTED",
+				)
+			}
+		}
+	}(
+		heartBeatTicker,
+		client,
+		srv,
+		logger,
+		response.NodeId,
+	)
+	//	var wg sync.WaitGroup
+	//wg.Add(1)
+	//fmt.Errorf()
+	err = srv.Serve(listener)
+
+	return
+}
+
+func backgroundHeartBeatRoutine(
+	client pb.AppNodeManagerClient,
+	logger *logrus.Logger,
+	nodeId string,
+	status string,
+) {
+	response, err := client.AppNodeHeartBeat(
+		context.Background(),
+		&pb.HeartBeatRequest{
+			NodeId: nodeId,
+			Status: status,
+		},
+	)
+	if err != nil {
+		err = fmt.Errorf("could not call grpc:HeartBeat method: %v", err)
+		if logger != nil {
+			logger.Error(err)
+		}
+	}
+	if response.ErrorMessage != "" {
+		err = fmt.Errorf("grpc:HeartBeat method responce: %v", response.ErrorMessage)
+		if logger != nil {
+			logger.Error(err)
+		}
+	}
+}
+
+type dataManagerServiceType struct {
+	logger            *logrus.Logger
+	categorySlicePath string
+}
+
+func (s dataManagerServiceType) CategorySplitCollect(
+	ctx context.Context,
+	request *pb.CategorySplitRequest) (
+	response *pb.CategorySplitResponse,
+	err error,
+) {
+	response = new(pb.CategorySplitResponse)
+	fileName := path.Join(s.categorySlicePath, request.RelativeStoringFile)
+	fout, err := os.Create(fileName)
+	if err != nil {
+		err = fmt.Errorf("could not create the specified file  %v: %v", fileName, err)
+		s.logger.Error(err)
+		response.ErrorMessage = fmt.Sprintf("%v", err)
+		return
+	}
+	defer fout.Close()
+	written, err := fout.Write(request.Data)
+	if err != nil {
+		err = fmt.Errorf("could not write data to the specified file %v: %v", fileName, err)
+		s.logger.Error(err)
+		response.ErrorMessage = fmt.Sprintf("%v", err)
+		return
+	}
+	if written < 0 {
+		err = fmt.Errorf("number of written bytes is less than 0")
+		s.logger.Error(err)
+		response.ErrorMessage = fmt.Sprintf("%v", err)
+		return
+	}
+	response.SizeWritten = uint64(written)
 	return
 }

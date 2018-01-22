@@ -48,3 +48,21 @@ create table if not exists category_split_file(
 
 
 select * from CATEGORY_SPLIT_COLUMN
+
+
+
+create sequence if not exists app_node_seq;
+
+drop table if exists app_node;
+
+create table if not exists app_node (
+ id bigint,
+ hostname varchar(255),
+ address varchar(255),
+ last_heartbeat varchar(50),
+ state varchar(50),
+ role  varchar(50),
+ constraint app_node_pk primary key (id)
+)
+
+

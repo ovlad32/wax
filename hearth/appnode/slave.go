@@ -29,10 +29,12 @@ func (node *ApplicationNodeType) StartSlaveNode(masterHost, masterPort, nodeIDDi
 	{
 		var nodeIdBytes []byte
 		nodeIdBytes, err = ioutil.ReadFile(nodeIdFile)
-		if !os.IsExist(err) {
-			err = fmt.Errorf("could not read registered Node Id from %v: %v", nodeIdFile, err)
-			logger.Fatal(err)
-			return
+		if err != nil {
+			if !os.IsNotExist(err) {
+				err = fmt.Errorf("could not read registered Node Id from %v: %v", nodeIdFile, err)
+				logger.Fatal(err)
+				return
+			}
 		}
 		if nodeIdBytes != nil && len(nodeIdBytes) > 0 {
 			storedNodeId = string(nodeIdBytes)
@@ -109,8 +111,12 @@ func (node *ApplicationNodeType) StartSlaveNode(masterHost, masterPort, nodeIDDi
 		logger.Fatal(err)
 		return err
 	}
-
-	heartBeatTicker := time.NewTicker(10 * time.Minute)
+	if storedNodeId == "" {
+		logger.Infof("Master Node registered this Node with NodeId #%v",response.NodeId)
+	} else {
+		logger.Infof("Master Node accepted this NodeId #%v",response.NodeId)
+	}
+	heartBeatTicker := time.NewTicker(time.Duration(node.config.SlaveHeartBeatSeconds) * time.Second)
 	go func(
 		hbTicker *time.Ticker,
 		client pb.AppNodeManagerClient,
@@ -123,12 +129,19 @@ func (node *ApplicationNodeType) StartSlaveNode(masterHost, masterPort, nodeIDDi
 				if opened {
 					backgroundHeartBeatRoutine(client, logger, response.NodeId, "ALIVE")
 				}
-				return
+				if !opened {
+					return
+				}
 			}
 		}
 	}(heartBeatTicker, client, logger, response.NodeId)
 
-	listener, err := net.Listen("tcp", ":9101")
+	address := ":9101"
+
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		err = fmt.Errorf("could not start listener at %v: %v ",address,err)
+	}
 	srv := grpc.NewServer()
 
 	pb.RegisterDataManagerServer(srv, &dataManagerServiceType{
@@ -138,7 +151,8 @@ func (node *ApplicationNodeType) StartSlaveNode(masterHost, masterPort, nodeIDDi
 	})
 
 	osSignal := make(chan os.Signal, 1)
-	signal.Notify(osSignal, os.Interrupt)
+	signal.Notify(osSignal, os.Interrupt,os.Kill)
+	signal.Reset(osSignal, os.Interrupt,os.Kill)
 	go func(hbTicker *time.Ticker, client pb.AppNodeManagerClient, server *grpc.Server, logger *logrus.Logger, NodeId string) {
 		for {
 			select {
@@ -193,6 +207,12 @@ func backgroundHeartBeatRoutine(
 			logger.Error(err)
 		}
 	}
+	if status == "ALIVE" {
+		logger.Infof("NodeId #%v HeartBeat has been called", nodeId)
+	} else if status == "INTERRUPTED" {
+		logger.Warnf("NodeId #%v HeartBeat: Interruption occurred ", nodeId)
+	}
+
 }
 
 type dataManagerServiceType struct {

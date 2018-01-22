@@ -81,8 +81,10 @@ func main() {
 	}
 	node,err := appnode.NewApplicationNode(
 		&appnode.ApplicationNodeConfigType{
-			Log:config.Logger,
-			Port:9100,
+			Logger:config.Logger,
+			GrpcPort:9100,
+			RestPort:9200,
+			SlaveHeartBeatSeconds:10,
 		},
 	)
 	if err != nil {
@@ -94,7 +96,7 @@ func main() {
 	} else if *applicationRole == "master" {
 		node.StartMasterNode()
 	} else if *applicationRole == "slave" {
-		node.StartSlaveNode("123",*masterNodeHost,*masterNodePort)
+		node.StartSlaveNode(*masterNodeHost,*masterNodePort,*nodeIdDirectory)
 	} else {
 		log.Fatal("parameter role '%v' is not recognized")
 	}

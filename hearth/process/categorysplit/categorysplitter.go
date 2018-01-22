@@ -113,7 +113,6 @@ func (c rowCategoryData) String() (result string){
 
 type bufferedCategorySplitFileType struct{
 	config *CategorySplitConfigType
-
 	*dto.CategorySplitFileType
 	buffer *bytes.Buffer
 	currentRowCount int64
@@ -135,6 +134,11 @@ func (b *bufferedCategorySplitFileType) WriteDumpLine(line []byte) (flushed bool
 		b.currentRowCount = 0
 		b.buffer.Truncate(0)
 	}
+	return
+}
+
+func (b *bufferedCategorySplitFileType) FlushToAppNode() (err error) {
+
 	return
 }
 

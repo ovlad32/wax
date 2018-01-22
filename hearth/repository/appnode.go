@@ -9,7 +9,7 @@ import (
 )
 
 func AppNodeSeqId() (id int64, err error) {
-	err = iDb.QueryRow("select nextval('SPLIT_COLUMN_DATA_SEQ')").Scan(&id)
+	err = iDb.QueryRow("select nextval('APP_NODE_SEQ')").Scan(&id)
 	if err != nil {
 		err = fmt.Errorf("could not get a sequential number from SPLIT_COLUMN_DATA_SEQ: %v", err)
 	}
@@ -25,7 +25,7 @@ func PutAppNode(entity *dto.AppNodeType) (err error) {
 	}()
 
 	if !entity.Id.Valid() {
-		id, err := CategorySplitSeqId()
+		id, err := AppNodeSeqId()
 		if err != nil {
 			return err
 		}
@@ -70,11 +70,10 @@ func PutAppNode(entity *dto.AppNodeType) (err error) {
 
 
 func appNode(ctx context.Context, where whereFunc, args []interface{}) (result []*dto.AppNodeType, err error) {
-	tx, err := iDb.Begin()
+	tx, err := iDb.Conn(ctx)
 	if err != nil {
 		return
 	}
-	defer tx.Rollback()
 
 	result = make([]*dto.AppNodeType, 0)
 	query := "SELECT " +

@@ -4,15 +4,19 @@ import (
 	"github.com/sirupsen/logrus"
 	"os"
 	"fmt"
+	"sync"
 )
 
 type ApplicationNodeConfigType struct {
-	Port int
+	GrpcPort int
+	RestPort int
+	SlaveHeartBeatSeconds int
 	Logger *logrus.Logger
 }
 type ApplicationNodeType struct {
 	config ApplicationNodeConfigType
 	hostName string
+	wg sync.WaitGroup
 }
 
 
@@ -27,6 +31,7 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (result *ApplicationNode
 		err = fmt.Errorf("could not get local host name: %v",err)
 		return nil,err
 	}
+
 	return
 }
 

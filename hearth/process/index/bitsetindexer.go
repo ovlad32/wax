@@ -93,6 +93,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 	started = time.Now()
 	processRowContent := func(
 		ctx context.Context,
+		config *dump.DumperConfigType,
 		lineNumber,
 		DataPosition uint64,
 		rowFields [][]byte,
@@ -110,9 +111,18 @@ func (indexer *BitsetIndexerType) buildBitsets(
 				started = time.Now()
 			}
 		}
+
 		for columnNumber, column := range targetTableColumns {
+
 			if offPostitions[columnNumber] || len(rowFields[columnNumber]) == 0 {
 				continue
+			}
+			if len(config.FusionColumnSeparators) >= columnNumber && config.FusionColumnSeparators[columnNumber] != 0 {
+				FusionColumnsQuantityKey := ""
+				fusionColumns := misc.SplitDumpLine(rowFields[columnNumber],config.FusionColumnSeparators[columnNumber])
+				if len(fusionColumns) > 1 {
+					strings.Join([]string{string(columnNumber),string(len(fusionColumns))},":")
+				}
 			}
 
 			drop := dto.NewSyrupDrop(column, rowFields[columnNumber])

@@ -65,4 +65,23 @@ create table if not exists app_node (
  constraint app_node_pk primary key (id)
 )
 
+create table fusion_column_group (
+  id bigint,
+  column_info_id bigint,
+  group_tuples text,
+  constraint  fusion_column_group_pk primary key (id)
+)
 
+alter table column_info add column if not exists NUMERIC_COUNT bigint;
+alter table column_info add column if not exists min_fval float;
+alter table column_info add column if not exists max_fval float;
+alter table column_info add column if not exists min_sval varchar(4000);
+alter table column_info add column if not exists max_sval varchar(4000);
+alter table column_info add column if not exists integer_unique_count bigint;
+alter table column_info add column if not exists moving_mean float;
+alter table column_info add column if not exists moving_stddev float;
+alter table column_info add column if not exists HAS_FLOAT_CONTENT boolean;
+alter table column_info add column if not exists POSITION_IN_PK int;
+alter table column_info add column if not exists TOTAL_IN_PK int;
+alter table column_info add column if not exists fusion_parent_column_id bigint;
+alter table column_info add column if not exists fusion_column_group_id bigint;

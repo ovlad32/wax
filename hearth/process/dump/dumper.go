@@ -2,59 +2,58 @@ package dump
 
 import (
 	"bufio"
-	"bytes"
 	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ovlad32/wax/hearth/handling"
+	"github.com/ovlad32/wax/hearth/misc"
 	"io"
 	"os"
 	"strings"
-	"github.com/ovlad32/wax/hearth/handling"
-	"github.com/ovlad32/wax/hearth/misc"
 )
 
-
 type DumperStartFromLine struct {
-	 Line uint64
+	Line uint64
 }
 
 type DumperStartFromByte struct {
-	Position int
+	Position  int
 	FirstLine uint64
 }
 
 type DumperConfigType struct {
-	GZip            bool
-	ColumnSeparator byte
-	LineSeparator   byte
-	BufferSize      int
-	StartFromLine   *DumperStartFromLine
-	StartFromByte   *DumperStartFromByte
-	Log             handling.Logger
+	GZip                   bool
+	ColumnSeparator        byte
+	LineSeparator          byte
+	BufferSize             int
+	StartFromLine          *DumperStartFromLine
+	StartFromByte          *DumperStartFromByte
+	FusionColumnSeparators []byte
+	Log                    handling.Logger
 }
 
 type DumperType struct {
 	config DumperConfigType
 }
 
-func NewDumper(cfg *DumperConfigType) (dumper *DumperType,err error){
+func NewDumper(cfg *DumperConfigType) (dumper *DumperType, err error) {
 	err = validateDumperConfig(cfg)
 	if err != nil {
-		err = fmt.Errorf("coult not create a new dumper: %v",err)
+		err = fmt.Errorf("coult not create a new dumper: %v", err)
 		return
 	}
 	return &DumperType{
 		config: *cfg,
-	},nil
+	}, nil
 }
-
 
 type errorAbortedByType struct {
 	error
 	message string
 }
-func (e errorAbortedByType) Error() (string) {
+
+func (e errorAbortedByType) Error() string {
 	return e.message
 }
 
@@ -62,34 +61,30 @@ type ErrorAbortedByRowProcessing errorAbortedByType
 
 type ErrorAbortedByContext errorAbortedByType
 
-type RowProcessingFuncType func(context.Context, uint64, uint64,[][]byte,[]byte) (error)
-
+type RowProcessingFuncType func(context.Context, *DumperConfigType, uint64, uint64, [][]byte, []byte) error
 
 var (
-	x0D = []byte{0x0D}
-    defaultColumnSeparatorByte byte =0x1F
-    defaultLineSeparatorByte byte =0x0A
-	defaultBufferSize int =  4096
+	x0D                             = []byte{0x0D}
+	defaultColumnSeparatorByte byte = 0x1F
+	defaultLineSeparatorByte   byte = 0x0A
+	defaultBufferSize          int  = 4096
 )
 
 func IsErrorAbortedByRowProcessing(err error) bool {
 	if err == nil {
-		return false;
+		return false
 	}
 	_, typeOf := err.(ErrorAbortedByRowProcessing)
-	return typeOf;
+	return typeOf
 }
 
 func IsErrorByContext(err error) bool {
 	if err == nil {
-		return false;
+		return false
 	}
 	_, typeOf := err.(ErrorAbortedByContext)
-	return typeOf;
+	return typeOf
 }
-
-
-
 
 func validateDumperConfig(cfg *DumperConfigType) (err error) {
 	if cfg == nil {
@@ -97,7 +92,7 @@ func validateDumperConfig(cfg *DumperConfigType) (err error) {
 		return
 	}
 
-	if cfg.StartFromLine !=nil && cfg.StartFromByte != nil &&
+	if cfg.StartFromLine != nil && cfg.StartFromByte != nil &&
 		cfg.StartFromLine.Line > 0 && cfg.StartFromByte.Position > 0 {
 		err = fmt.Errorf(
 			"wrong parameters: mixture of mutually exceptional parameters: "+
@@ -123,11 +118,9 @@ func validateDumperConfig(cfg *DumperConfigType) (err error) {
 
 	return
 }
-func (dumper *DumperType) Config() (DumperConfigType){
+func (dumper *DumperType) Config() DumperConfigType {
 	return dumper.config
 }
-
-
 
 func (dumper *DumperType) ReadFromStream(
 	ctx context.Context,
@@ -145,19 +138,15 @@ func (dumper *DumperType) ReadFromStream(
 
 	err = validateDumperConfig(&dumper.config)
 	if err != nil {
-		err = fmt.Errorf("could not process dump stream: %v",err)
+		err = fmt.Errorf("could not process dump stream: %v", err)
 		return
 	}
 
-
-
-
-
 	if dumper.config.GZip {
 		var zipped *gzip.Reader
-		zipped,err = gzip.NewReader(stream)
+		zipped, err = gzip.NewReader(stream)
 		if err != nil {
-			err = fmt.Errorf("couldn't create zip reader from stream: %v",err)
+			err = fmt.Errorf("couldn't create zip reader from stream: %v", err)
 			return
 		}
 		stream = zipped
@@ -165,10 +154,9 @@ func (dumper *DumperType) ReadFromStream(
 
 	buffered := bufio.NewReaderSize(stream, dumper.config.BufferSize)
 	if err != nil {
-		err = fmt.Errorf("couldn't create buffer from stream: %v",err)
+		err = fmt.Errorf("couldn't create buffer from stream: %v", err)
 		return
 	}
-
 
 	if dumper.config.StartFromByte != nil && dumper.config.StartFromByte.Position > 0 {
 		var discarded int
@@ -188,11 +176,9 @@ func (dumper *DumperType) ReadFromStream(
 			)
 			return
 		}
-		lineNumber =  dumper.config.StartFromByte.FirstLine
+		lineNumber = dumper.config.StartFromByte.FirstLine
 		streamPosition = uint64(discarded)
 	}
-	var columnSeparatorBytes []byte = []byte{dumper.config.ColumnSeparator}
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -209,26 +195,19 @@ func (dumper *DumperType) ReadFromStream(
 					err,
 				)
 			}
-			if dumper.config.StartFromLine == nil || lineNumber >= dumper.config.StartFromLine.Line{
+			if dumper.config.StartFromLine == nil || lineNumber >= dumper.config.StartFromLine.Line {
 
 				originalLineLength := len(originalLine)
 
-				lineColumns := misc.SplitDumpLine(originalLine,dumper.config.ColumnSeparator)
-				if false {
-					originalLineLength := len(originalLine)
-					strippedLine := originalLine
-					if strippedLine[originalLineLength-1] == dumper.config.LineSeparator {
-						strippedLine = strippedLine[:originalLineLength-1]
-					}
-					if strippedLine[originalLineLength-2] == x0D[0] {
-						strippedLine = strippedLine[:originalLineLength-2]
-					}
+				lineColumns := misc.SplitDumpLine(originalLine, dumper.config.ColumnSeparator)
 
-				lineColumns := bytes.Split(strippedLine,columnSeparatorBytes )
-					_ = lineColumns
-				}
-
-				err = rowProcessingFunc(ctx, lineNumber, streamPosition, lineColumns, originalLine)
+				err = rowProcessingFunc(ctx,
+					&dumper.config,
+					lineNumber,
+					streamPosition,
+					lineColumns,
+					originalLine,
+				)
 
 				if err != nil {
 					return
@@ -242,15 +221,11 @@ func (dumper *DumperType) ReadFromStream(
 	return
 }
 
-
-
-
 func (dumper *DumperType) ReadFromFile(
 	ctx context.Context,
 	pathToFile string,
-	rowProcessingFunc RowProcessingFuncType ,
+	rowProcessingFunc RowProcessingFuncType,
 ) (lineNumber uint64, err error) {
-
 
 	if strings.TrimSpace(pathToFile) == "" {
 		err = errors.New("pathToFile is empty")
@@ -259,18 +234,18 @@ func (dumper *DumperType) ReadFromFile(
 
 	err = validateDumperConfig(&dumper.config)
 	if err != nil {
-		err = fmt.Errorf("could not process file %v : %v",pathToFile,err)
+		err = fmt.Errorf("could not process file %v : %v", pathToFile, err)
 		return
 	}
 
 	file, err := os.Open(pathToFile)
 	if err != nil {
-		err = fmt.Errorf("could not open file %v: %v", pathToFile,err)
+		err = fmt.Errorf("could not open file %v: %v", pathToFile, err)
 		return
 	}
 
 	defer file.Close()
 
-	return dumper.ReadFromStream(ctx,file,rowProcessingFunc)
+	return dumper.ReadFromStream(ctx, file, rowProcessingFunc)
 
 }

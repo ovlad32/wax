@@ -249,6 +249,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 	var currentBufferedRowData *bufferedCategorySplitFileType
 	processRowContent := func(
 		ctx context.Context,
+		config *dump.DumperConfigType,
 		lineNumber,
 		DataPosition uint64,
 		rowFields [][]byte,

@@ -152,7 +152,7 @@ func (node *ApplicationNodeType) StartSlaveNode(masterHost, masterPort, nodeIDDi
 
 	osSignal := make(chan os.Signal, 1)
 	signal.Notify(osSignal, os.Interrupt,os.Kill)
-	signal.Reset(osSignal, os.Interrupt,os.Kill)
+	//signal.Reset(osSignal, os.Interrupt,os.Kill)
 	go func(hbTicker *time.Ticker, client pb.AppNodeManagerClient, server *grpc.Server, logger *logrus.Logger, NodeId string) {
 		for {
 			select {

@@ -55,6 +55,7 @@ func (searcher ColumnSearcherType)Search(
 	}
 	processRowContent := func(
 		ctx context.Context,
+		config *dump.DumperConfigType,
 		lineNumber,
 		DataPosition uint64,
 		leftData [][]byte,

@@ -22,6 +22,9 @@ func PutAppNode(entity *dto.AppNodeType) (err error) {
 		if err != nil {
 			err = fmt.Errorf("could not %v AppNode entity: %v",misc.Iif(newOne,"insert","update"),err)
 		}
+		if newOne {
+			entity.Id = nullable.NullInt64{}
+		}
 	}()
 
 	if !entity.Id.Valid() {

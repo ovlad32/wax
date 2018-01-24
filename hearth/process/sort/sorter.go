@@ -66,6 +66,7 @@ func (sorter *ColumnSorterType) SortByColumn(
 	var addressIndex int = 0
 	processRowContent := func(
 		ctx context.Context,
+		config *dump.DumperConfigType,
 		lineNumber,
 		DataPosition uint64,
 		rowFields [][]byte,

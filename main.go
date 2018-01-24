@@ -22,6 +22,8 @@ import (
 	"github.com/ovlad32/wax/hearth/process/search"
 	"github.com/sirupsen/logrus"
 	"github.com/ovlad32/wax/hearth/appnode"
+	"io"
+	"io/ioutil"
 )
 
 var packageName = "main"
@@ -205,3 +207,6 @@ func test1() {
 	fmt.Println(s2)
 	fmt.Println(s3)
 }
+
+
+

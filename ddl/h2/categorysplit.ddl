@@ -70,7 +70,7 @@ create table fusion_column_group (
   column_info_id bigint,
   group_tuples text,
   constraint  fusion_column_group_pk primary key (id)
-)
+);
 
 alter table column_info add column if not exists NUMERIC_COUNT bigint;
 alter table column_info add column if not exists min_fval float;
@@ -78,10 +78,13 @@ alter table column_info add column if not exists max_fval float;
 alter table column_info add column if not exists min_sval varchar(4000);
 alter table column_info add column if not exists max_sval varchar(4000);
 alter table column_info add column if not exists integer_unique_count bigint;
+alter table column_info add column if not exists integer_count bigint;
 alter table column_info add column if not exists moving_mean float;
 alter table column_info add column if not exists moving_stddev float;
-alter table column_info add column if not exists HAS_FLOAT_CONTENT boolean;
 alter table column_info add column if not exists POSITION_IN_PK int;
 alter table column_info add column if not exists TOTAL_IN_PK int;
-alter table column_info add column if not exists fusion_parent_column_id bigint;
-alter table column_info add column if not exists fusion_column_group_id bigint;
+alter table column_info add column if not exists SOURCE_FUSION_COLUMN_ID bigint;
+alter table column_info add column if not exists POSITION_IN_FUSION int;
+alter table column_info add column if not exists TOTAL_IN_FUSION int;
+alter table column_info add column if not exists FUSION_COLUMN_GROUP_ID bigint;
+alter table column_info add column if not exists EMPTY_COUNT bigint;

@@ -9,3 +9,4 @@ BINDATA/
 *.iml
 gopath.cmd
 *.out
+nodeId*

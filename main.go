@@ -22,8 +22,6 @@ import (
 	"github.com/ovlad32/wax/hearth/process/search"
 	"github.com/sirupsen/logrus"
 	"github.com/ovlad32/wax/hearth/appnode"
-	"io"
-	"io/ioutil"
 )
 
 var packageName = "main"

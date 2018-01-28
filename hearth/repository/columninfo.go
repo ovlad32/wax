@@ -107,7 +107,7 @@ func columnInfo(ctx context.Context, where whereFunc, args []interface{}) (resul
 func ColumnInfoByTable(ctx context.Context, tableInfo *dto.TableInfoType) (result []*dto.ColumnInfoType, err error) {
 	where := MakeWhereFunc()
 	args := MakeWhereArgs()
-	whereString := " WHERE TABLE_INFO_ID = %v"
+	whereString := " WHERE TABLE_INFO_ID = %v and FUSION_COLUMN_GROUP_ID is null"
 
 	if tableInfo != nil && tableInfo.Id.Valid() {
 		switch currentDbType {
@@ -300,6 +300,8 @@ func PutColumnInfo(ctx context.Context, columnInfo *dto.ColumnInfoType) (err err
 
 	return
 }
+
+
 
 func fusionColumnGroup(ctx context.Context, where whereFunc, args []interface{}) (result []*dto.FusionColumnGroupType, err error) {
 

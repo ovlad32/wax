@@ -11,6 +11,12 @@ import (
 	"strings"
 	"path"
 	"github.com/ovlad32/wax/hearth/misc"
+	"strconv"
+	"unsafe"
+	"bufio"
+	"bytes"
+	"log"
+	"github.com/ovlad32/wax/hearth/handling/nullable"
 )
 
 
@@ -91,6 +97,33 @@ func (indexer *BitsetIndexerType) buildBitsets(
 	//sql.Open("postgres","")
 
 	started = time.Now()
+	type splitColumnDataType struct {
+		sourceColumnInfo    *dto.ColumnInfoType
+		splitDataBytes      [][]byte
+		splitColumnInfoList dto.ColumnInfoListType
+	}
+
+	type splitColumnListDataType []*splitColumnDataType;
+	var splitColumnMap map[string]map[int]dto.ColumnInfoListType
+
+	//type fusionDataListType []*fusionDataType;
+
+	/*fusKey := func (t *fusionDataListType) (result string) {
+		if t == nil || len(*t) == 0 {
+			return ""
+		}
+		a := make([]string,0,len(t))
+		for _,v := range t {
+			a = append(a,
+				strconv.Itoa(v.columnNumber)+":"+strconv.Itoa(len(v.fuse)),
+			)
+		}
+		return strings.Join(a,";")
+	}*/
+
+
+
+
 	processRowContent := func(
 		ctx context.Context,
 		config *dump.DumperConfigType,
@@ -111,17 +144,43 @@ func (indexer *BitsetIndexerType) buildBitsets(
 				started = time.Now()
 			}
 		}
+		var fusionColunmList dto.FusionColumnListType
+		var splitColumnListData splitColumnListDataType
+
 
 		for columnNumber, column := range targetTableColumns {
 
 			if offPostitions[columnNumber] || len(rowFields[columnNumber]) == 0 {
 				continue
 			}
+
 			if len(config.FusionColumnSeparators) >= columnNumber && config.FusionColumnSeparators[columnNumber] != 0 {
-				FusionColumnsQuantityKey := ""
-				fusionColumns := misc.SplitDumpLine(rowFields[columnNumber],config.FusionColumnSeparators[columnNumber])
-				if len(fusionColumns) > 1 {
-					strings.Join([]string{string(columnNumber),string(len(fusionColumns))},":")
+
+				SplitData := misc.SplitDumpLine(rowFields[columnNumber],config.FusionColumnSeparators[columnNumber])
+				if len(SplitData) > 1 {
+					if fusionColunmList  == nil {
+						fusionColunmList  = make(dto.FusionColumnListType, 0, len(targetTableColumns))
+						splitColumnListData = make(splitColumnListDataType, 0, len(targetTableColumns))
+
+					}
+
+					fusionColunmList = append(
+						fusionColunmList,
+								&dto.FusionColumnType{
+									SourceColumnPosition: columnNumber,
+									ColumnCount:          len(SplitData),
+								},
+					)
+
+					splitColumnListData = append (
+						splitColumnListData,
+						&splitColumnDataType{
+							splitDataBytes:        SplitData,
+							sourceColumnInfo: column,
+						},
+					)
+
+					continue
 				}
 			}
 
@@ -135,9 +194,87 @@ func (indexer *BitsetIndexerType) buildBitsets(
 			drop.DiscoverContentFeature(bitsetContent.IsPureContent())
 
 			drop.Hash(bitsetContent.IsHashContent())
+		}
+		if fusionColunmList != nil {
+			key := fusionColunmList.String()
 
+			if mappedSplitColumns,mappedFound := splitColumnMap[key];!mappedFound {
+				maxPosition :=  targetTable.MaxColumnPosition()
+
+				err = repository.PutFusionColumnGroup
+				if err != nil {
+					//TODO:
+				}
+
+				mappedSplitColumns = make(map[int]dto.ColumnInfoListType)
+				//splitColumnInfoList := make(dto.ColumnInfoListType,0,len(fusionSplitRowData))
+				for fusionIndex, scd := range splitColumnListData {
+					if scd.splitColumnInfoList  == nil {
+						scd.splitColumnInfoList = make(dto.ColumnInfoListType, 0, fusionColunmList[fusionIndex].ColumnCount)
+					}
+					for splitColumnNumber := 0; splitColumnNumber < fusionColunmList[fusionIndex].ColumnCount; splitColumnNumber ++{
+						maxPosition ++
+
+						splitColumn := &dto.ColumnInfoType{
+							DataLength:           scd.sourceColumnInfo.DataLength,
+							DataType:             scd.sourceColumnInfo.DataType,
+							RealDataType:         scd.sourceColumnInfo.RealDataType,
+							Nullable:             scd.sourceColumnInfo.Nullable,
+							TableInfoId:          scd.sourceColumnInfo.TableInfoId,
+							TableInfo:            scd.sourceColumnInfo.TableInfo,
+							SourceFusionColumnId: scd.sourceColumnInfo.Id,
+							FusionColumnGroupId:  0, //TODO:!!! ID!
+							PositionInFusion:     nullable.NewNullInt64(int64(splitColumnNumber)),
+							TotalInFusion:        nullable.NewNullInt64(int64(fusionColunmList[fusionIndex].ColumnCount)),
+							ColumnName: nullable.NewNullString(
+								fmt.Sprintf(
+									"%v(%v/%v)",
+									scd.sourceColumnInfo.ColumnName.Value(),
+									splitColumnNumber, fusionColunmList[fusionIndex].ColumnCount,
+								),
+							),
+							Position: nullable.NewNullInt64(int64(maxPosition)),
+						}
+						err = repository.PutColumnInfo(ctx, splitColumn)
+						if err != nil {
+							//TODO:
+						}
+						scd.splitColumnInfoList = append(scd.splitColumnInfoList, splitColumn)
+					}
+					targetTable.Columns = append(targetTable.Columns,scd.splitColumnInfoList...)
+
+					mappedSplitColumns[fusionColunmList[fusionIndex].SourceColumnPosition] = scd.splitColumnInfoList
+				}
+				splitColumnMap[key] = mappedSplitColumns
+			} else {
+				for splitRowDataIndex, scd := range splitColumnListData {
+					found := false;
+					position := fusionColunmList[splitRowDataIndex].SourceColumnPosition;
+					if scd.splitColumnInfoList,found = mappedSplitColumns[position]; !found {
+						//TODO:
+					}
+				}
+			}
+			for _,scd :=  range splitColumnListData {
+				for columnIndex := range scd.splitColumnInfoList {
+
+					drop := dto.NewSyrupDrop(scd.splitColumnInfoList[columnIndex], scd.splitDataBytes[columnIndex])
+					if drop == nil {
+						continue
+					}
+
+					drop.LineNumber = lineNumber
+
+					drop.DiscoverContentFeature(bitsetContent.IsPureContent())
+
+					drop.Hash(bitsetContent.IsHashContent())
+				}
+
+			}
 
 		}
+
+
 		return nil
 	}
 

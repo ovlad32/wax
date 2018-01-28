@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"github.com/ovlad32/wax/hearth/handling/nullable"
+	"strconv"
 )
 
 type FusionColumnGroupType struct {
@@ -16,26 +17,29 @@ type FusionColumnGroupType struct {
 
 
 
-type FusionColumnGroupDetailTupleType struct {
-	Pos int `json:"p"`
-	Count int `json:"c"`
+type FusionColumnType struct {
+	SourceColumnPosition int
+	ColumnCount int
 }
 
-type FusionColumnGroupDetailsType struct {
-	group []*FusionColumnGroupDetailTupleType `json:"groups"`
-}
+type FusionColumnListType []*FusionColumnType
 
-func (f *FusionColumnGroupDetailsType) ToJSON() (result string,err error)  {
 
-	enc := json.NewEncoder(bytes.NewBufferString(result))
-	err = enc.Encode(f)
-	if err != nil {
-		err = fmt.Errorf("could not encode FusionColumnGroupTuples: %v",err)
+func (f FusionColumnListType) String() (result string)  {
+	if f == nil || len(f) == 0 {
 		return
 	}
 
-	return
+	temp := make([]string,0,len(f))
+	for _,v := range f  {
+		temp = append(temp,
+			strconv.Itoa(v.SourceColumnPosition)+":"+strconv.Itoa(v.ColumnCount),
+		)
+	}
+	return strings.Join(temp,"|")
 }
+
+
 func (g FusionColumnGroupType) ToTuples(jsonData string) (result FusionColumnGroupDetailsType,err error){
 
 	dec := json.NewDecoder(strings.NewReader(jsonData))

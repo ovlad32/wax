@@ -11,6 +11,15 @@ func (t TableInfoType) String() (result string) {
 	}
 	return
 }
+func (t TableInfoType) MaxColumnPosition() (result int) {
+	for _, c := range(t.ColumnList()) {
+		if c.Position.Valid() && int(c.Position.Value())>result {
+			result = int(c.Position.Value())
+		}
+	}
+
+	return
+}
 
 func (t TableInfoType) GoString() (result string) {
 	return fmt.Sprintf("TableInfo[id:%v,name:%v]", t.Id.Value(), t)

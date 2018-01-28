@@ -124,3 +124,6 @@ func TableInfoById(ctx context.Context, id int) (result *dto.TableInfoType, err 
 	}
 	return
 }
+
+
+

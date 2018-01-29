@@ -213,7 +213,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 		Status:"n",
 	}
 
-	repository.PutCategorySplit(categorySplit)
+	repository.PutCategorySplit(ctx,categorySplit)
 
 	slitColumnMap := make(map[*dto.ColumnInfoType]*dto.CategorySplitColumnType);
 
@@ -227,7 +227,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 		}
 		slitColumnMap[column] = splitColumn
 		categorySplit.CategorySplitColumns = append(categorySplit.CategorySplitColumns, splitColumn)
-		err = repository.PutCategorySplitColumn(splitColumn)
+		err = repository.PutCategorySplitColumn(ctx,splitColumn)
 		if err != nil {
 			return err
 		}
@@ -287,7 +287,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 			}
 			if flushed {
 				currentBufferedRowData.CategorySplitFileType.Id = nullable.NullInt64{}
-				err = repository.PutCategorySplitFile(currentBufferedRowData.CategorySplitFileType)
+				err = repository.PutCategorySplitFile(ctx,currentBufferedRowData.CategorySplitFileType)
 				if err != nil {
 					return err
 				}
@@ -301,7 +301,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 					CategorySplitId:categorySplit.Id,
 					Data:key,
 				}
-				err = repository.PutCategorySplitRowDataType(rowData)
+				err = repository.PutCategorySplitRowDataType(ctx,rowData)
 				if err!=nil {
 					err =fmt.Errorf("could not persist CategorySplitRowDataType:%v",err)
 					return err
@@ -320,7 +320,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 			flushed, err = currentBufferedRowData.WriteDumpLine(original)
 			if flushed {
 				currentBufferedRowData.CategorySplitFileType.Id = nullable.NullInt64{}
-				err = repository.PutCategorySplitFile(currentBufferedRowData.CategorySplitFileType)
+				err = repository.PutCategorySplitFile(ctx,currentBufferedRowData.CategorySplitFileType)
 				if err != nil {
 					return err
 				}
@@ -361,7 +361,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 			return err
 		}
 		currentBufferedRowData.CategorySplitFileType.Id = nullable.NullInt64{}
-		repository.PutCategorySplitFile(currentBufferedRowData.CategorySplitFileType)
+		err = repository.PutCategorySplitFile(ctx,currentBufferedRowData.CategorySplitFileType)
 		if err != nil {
 			//TODO: err!
 			return err

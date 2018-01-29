@@ -6,10 +6,7 @@ import (
 )
 
 type ContentFeatureType struct {
-	Id              nullable.NullInt64
-	SourceId        nullable.NullInt64
-	SourceType      string
-	Column          *ColumnInfoType
+	ColumnInfoId        nullable.NullInt64
 	Key             string
 	ByteLength      int
 	IsNumeric       bool
@@ -17,7 +14,7 @@ type ContentFeatureType struct {
 	IsInteger       bool
 	HashUniqueCount nullable.NullInt64
 	ItemUniqueCount nullable.NullInt64
-	NonNullCount    nullable.NullInt64
+	TotalCount    nullable.NullInt64
 	MinStringValue  nullable.NullString
 	MaxStringValue  nullable.NullString
 	MinNumericValue nullable.NullFloat64
@@ -43,10 +40,11 @@ type ContentFeatureType struct {
 		maxStringValue      string
 		minNumericValue     float64
 		maxNumericValue     float64
-		nonNullCount        uint64
+		totalCount          uint64
 		bitsets             []handling.BitsetInterface
 		bitsetCardinalities []uint64
 	}
+	Column          *ColumnInfoType
 }
 
 type ContentFeatureArrayType []*ContentFeatureType

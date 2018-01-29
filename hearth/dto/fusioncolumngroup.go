@@ -1,9 +1,6 @@
 package dto
 
 import (
-	"encoding/json"
-	"bytes"
-	"fmt"
 	"strings"
 	"github.com/ovlad32/wax/hearth/handling/nullable"
 	"strconv"
@@ -41,7 +38,7 @@ func (f FusionColumnListType) String() (result string)  {
 	return strings.Join(temp,"|")
 }
 
-
+/*
 func (g FusionColumnGroupType) ToTuples(jsonData string) (result FusionColumnGroupDetailsType,err error){
 
 	dec := json.NewDecoder(strings.NewReader(jsonData))
@@ -51,4 +48,4 @@ func (g FusionColumnGroupType) ToTuples(jsonData string) (result FusionColumnGro
 		return
 	}
 	return
-}
+}*/

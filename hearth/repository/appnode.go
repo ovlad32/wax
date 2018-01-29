@@ -1,11 +1,10 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"github.com/ovlad32/wax/hearth/dto"
 	"github.com/ovlad32/wax/hearth/handling/nullable"
-	"context"
-	"github.com/ovlad32/wax/hearth/misc"
 )
 
 func AppNodeSeqId() (id int64, err error) {
@@ -16,17 +15,8 @@ func AppNodeSeqId() (id int64, err error) {
 	return
 }
 
-func PutAppNode(entity *dto.AppNodeType) (err error) {
+func PutAppNode(ctx context.Context, entity *dto.AppNodeType) (err error) {
 	var newOne bool
-	defer func(){
-		if err != nil {
-			err = fmt.Errorf("could not %v AppNode entity: %v",misc.Iif(newOne,"insert","update"),err)
-		}
-		if newOne {
-			entity.Id = nullable.NullInt64{}
-		}
-	}()
-
 	if !entity.Id.Valid() {
 		id, err := AppNodeSeqId()
 		if err != nil {
@@ -35,71 +25,59 @@ func PutAppNode(entity *dto.AppNodeType) (err error) {
 		entity.Id = nullable.NewNullInt64(id)
 		newOne = true
 	}
-
-	var dml string
-	if  newOne {
-		switch currentDbType {
-		case H2:
-			dml = "insert into app_node(id,hostname,address,last_heartbeat,state,role) values(%v,'%v','%v','%v','%v','%v')"
-			dml = fmt.Sprintf(dml,entity.Id,entity.Hostname,entity.Address,entity.LastHeartbeat,entity.State,entity.Role)
-			_,err = iDb.Exec(dml)
-		default:
-			dml = "insert into app_node(id,hostname,address,last_heartbeat,state,role) values(?,?,?,?,?,?)"
-			_,err = iDb.Exec(dml,entity.Id,entity.Hostname,entity.Address,entity.LastHeartbeat,entity.State,entity.Role)
-		}
+	if newOne {
+		params := varray{
+			entity.Id,
+			entity.Hostname,
+			entity.Address,
+			entity.LastHeartbeat,
+			entity.State,
+			entity.Role,
+			}
+		dml := `insert into app_node(id,hostname,address,last_heartbeat,state,role) values (`+ParamPlaces(len(params))+`)`
+		_, err = ExecContext(ctx, dml,params...)
 		if err != nil {
-			err = fmt.Errorf("could not add a new category_split row: %v",err)
+			err = fmt.Errorf("could not add a new app_node row: %v", err)
+			entity.Id = nullable.NullInt64{}
 			return
 		}
 	} else {
-		switch currentDbType {
-		case H2:
-			dml = "update app_node set last_heartbeat='%v', state='%v' where id = %v"
-			dml = fmt.Sprintf(dml,entity.LastHeartbeat,entity.State,entity.Id)
-			_,err = iDb.Exec(dml)
-		default:
-			dml = "update app_node set last_heartbeat=?, state=? where id = ?"
-			_,err = iDb.Exec(dml,entity.LastHeartbeat,entity.State,entity.Id)
-		}
+		dml := `update app_node set last_heartbeat=?, state=? where id = ?`
+		_, err = ExecContext(ctx, dml, entity.LastHeartbeat, entity.State, entity.Id)
 		if err != nil {
-			err = fmt.Errorf("could not update category_split row where id=%v: %v",entity.Id.Value(), err)
+			err = fmt.Errorf("could not update app_node row where id=%v: %v", entity.Id.Value(), err)
 			return
 		}
 	}
 	return
 }
 
+func appNode(ctx context.Context, where whereFuncType) (result []*dto.AppNodeType, err error) {
 
-
-
-func appNode(ctx context.Context, where whereFunc, args []interface{}) (result []*dto.AppNodeType, err error) {
-	tx, err := iDb.Conn(ctx)
-	if err != nil {
-		return
-	}
-
-	result = make([]*dto.AppNodeType, 0)
-	query := "SELECT " +
-		" ID" +
-		" ,HOSTNAME" +
-		" ,ADDRESS" +
-		" ,LAST_HEARTBEAT" +
-		" ,STATE" +
-		" ,ROLE" +
-		" FROM APP_NODE "
+	var args []interface{}
+	result = make([]*dto.AppNodeType, 0, 1)
+	query := `SELECT 
+		 ID
+		 ,HOSTNAME
+		 ,ADDRESS
+		 ,LAST_HEARTBEAT
+		 ,STATE
+		 ,ROLE 
+		 FROM APP_NODE `
 
 	if where != nil {
-		query = query + where()
+		var whereClause string
+		whereClause, args = where()
+		query = query + whereClause
 	}
-	//	query = query + " ORDER BY ID"
-	rws, err := tx.QueryContext(ctx,query,args...)
+	rows, err := QueryContext(ctx, query, args...)
 	if err != nil {
 		return
 	}
 
-	for rws.Next() {
+	for rows.Next() {
 		var row dto.AppNodeType
-		err = rws.Scan(
+		err = rows.Scan(
 			&row.Id,
 			&row.Hostname,
 			&row.Address,
@@ -115,24 +93,12 @@ func appNode(ctx context.Context, where whereFunc, args []interface{}) (result [
 	return
 }
 
-
-
 func AppNameById(ctx context.Context, appNodeId int64) (result *dto.AppNodeType, err error) {
-	args := MakeWhereArgs()
-	whereString := " WHERE ID = %v"
-	switch currentDbType {
-	case H2:
-		whereString = fmt.Sprintf(whereString, appNodeId)
-	default:
-		whereString = fmt.Sprintf(whereString, "?")
-		args = append(args,appNodeId)
-	}
 	results, err := appNode(
 		ctx,
-		func() string {
-			return whereString
+		func() (string, varray) {
+			return `WHERE ID = ?`, varray{appNodeId}
 		},
-		args,
 	)
 	if err == nil && len(results) > 0 {
 		result = results[0]

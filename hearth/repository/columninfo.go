@@ -8,15 +8,12 @@ import (
 	"strings"
 )
 
-func columnInfo(ctx context.Context, where whereFunc, args []interface{}) (result []*dto.ColumnInfoType, err error) {
 
-	tx, err := iDb.Conn(ctx)
-	if err != nil {
-		return
-	}
 
-	result = make([]*dto.ColumnInfoType, 0)
+func columnInfo(ctx context.Context, where whereFuncType ) (result []*dto.ColumnInfoType, err error) {
 
+	result = make([]*dto.ColumnInfoType,0, 5)
+	var args varray
 	query := `SELECT  
 		 ID 
 		 ,NAME 
@@ -42,19 +39,25 @@ func columnInfo(ctx context.Context, where whereFunc, args []interface{}) (resul
 		 ,MOVING_STDDEV
 		 ,POSITION_IN_PK
 		 ,TOTAL_IN_PK
-		 ,SOURCE_FUSION_COLUMN_ID
+		 ,SOURCE_FUSION_COLUMN_INFO_ID
          ,POSITION_IN_FUSION
          ,TOTAL_IN_FUSION
 		 ,FUSION_COLUMN_GROUP_ID
+         ,FUSION_SEPARATOR
+         ,SOURCE_SLICE_COLUMN_INFO_ID
 		 FROM COLUMN_INFO `
 
 	if where != nil {
-		query = query + where()
+		var whereClause string
+		whereClause,args = where()
+		query = query + whereClause
 	}
 
 	query = query + " ORDER BY POSITION"
-	rws, err := tx.QueryContext(ctx, query, args...)
+	rws,err := QueryContext(ctx, query, args...)
 	if err != nil {
+		err = fmt.Errorf("could not scan column_info entity data:%v",err)
+
 		return
 	}
 	defer rws.Close()
@@ -90,10 +93,12 @@ func columnInfo(ctx context.Context, where whereFunc, args []interface{}) (resul
 				&row.MovingStdDev,
 				&row.PositionInPK,
 				&row.TotalInPK,
-				&row.SourceFusionColumnId,
+				&row.SourceFusionColumnInfoId,
 				&row.PositionInFusion,
 				&row.TotalInFusion,
 				&row.FusionColumnGroupId,
+				&row.FusionSeparator,
+				&row.SourceSliceColumnInfoId,
 			)
 			if err != nil {
 				return
@@ -105,26 +110,21 @@ func columnInfo(ctx context.Context, where whereFunc, args []interface{}) (resul
 }
 
 func ColumnInfoByTable(ctx context.Context, tableInfo *dto.TableInfoType) (result []*dto.ColumnInfoType, err error) {
-	where := MakeWhereFunc()
-	args := MakeWhereArgs()
-	whereString := " WHERE TABLE_INFO_ID = %v and FUSION_COLUMN_GROUP_ID is null"
 
-	if tableInfo != nil && tableInfo.Id.Valid() {
-		switch currentDbType {
-		case H2:
-			where = func() string {
-				return fmt.Sprintf(whereString, tableInfo.Id)
-			}
-		default:
-			where = func() string {
-				return fmt.Sprintf(whereString, "?")
-			}
-
-			args = append(args, tableInfo.Id.Value())
-		}
+	if tableInfo == nil {
+		fmt.Errorf( "table reference is not initialized")
+		return
+	}
+	if !tableInfo.Id.Valid(){
+		fmt.Errorf( "table.Id is not initialized")
+		return
 	}
 
-	result, err = columnInfo(ctx, where, args)
+	result, err = columnInfo(ctx,
+		func()(string,varray) {
+			return " WHERE TABLE_INFO_ID = %v and FUSION_COLUMN_GROUP_ID is null", varray{tableInfo.Id.Value()}
+		},
+		)
 	if err == nil {
 		for index := range result {
 			result[index].TableInfo = tableInfo
@@ -134,30 +134,18 @@ func ColumnInfoByTable(ctx context.Context, tableInfo *dto.TableInfoType) (resul
 }
 
 func ColumnInfoById(ctx context.Context, Id int) (result *dto.ColumnInfoType, err error) {
-	_ = ctx
 
-	where := MakeWhereFunc()
-	args := MakeWhereArgs()
-	whereString := " WHERE ID = %v"
-	switch currentDbType {
-	case H2:
-		where = func() string {
-			return fmt.Sprintf(whereString, Id)
-		}
-	default:
-		where = func() string {
-			return fmt.Sprintf(whereString, "")
-		}
-		args = append(args, Id)
-	}
-
-	res, err := columnInfo(ctx, where, args)
+	res, err := columnInfo(ctx, func()(string,varray) {
+		return 	" WHERE ID = ?",varray{Id}
+		},
+		)
 
 	if err == nil && len(res) > 0 {
 		result = res[0]
 	}
 	return
 }
+
 
 func ColumnInfoSeqId() (id int64, err error) {
 	err = iDb.QueryRow("select nextval('COLUMN_INFO_SEQ')").Scan(&id)
@@ -171,9 +159,6 @@ func PutColumnInfo(ctx context.Context, columnInfo *dto.ColumnInfoType) (err err
 	_ = ctx
 	var newOne bool
 
-	if newOne {
-		columnInfo.Id = nullable.NullInt64{}
-	}
 	if columnInfo == nil {
 		err = fmt.Errorf("column is not initialized")
 		return
@@ -188,10 +173,41 @@ func PutColumnInfo(ctx context.Context, columnInfo *dto.ColumnInfoType) (err err
 		columnInfo.Id = nullable.NewNullInt64(id)
 		newOne = true
 	}
-
+	data := varray{
+		columnInfo.Id,
+		columnInfo.ColumnName.SQLString(),
+		columnInfo.DataType.SQLString(),
+		columnInfo.RealDataType.SQLString(),
+		columnInfo.DataLength,
+		columnInfo.DataPrecision,
+		columnInfo.DataScale,
+		columnInfo.Position,
+		columnInfo.Nullable,
+		columnInfo.TotalRowCount,
+		columnInfo.UniqueRowCount,
+		columnInfo.HashUniqueCount,
+		columnInfo.TableInfoId,
+		columnInfo.NonNullCount,
+		columnInfo.NumericCount,
+		columnInfo.MinNumericValue,
+		columnInfo.MaxNumericValue,
+		columnInfo.MinStringValue.SQLString(),
+		columnInfo.MaxStringValue.SQLString(),
+		columnInfo.IntegerCount,
+		columnInfo.IntegerUniqueCount,
+		columnInfo.MovingMean,
+		columnInfo.MovingStdDev,
+		columnInfo.PositionInPK,
+		columnInfo.TotalInPK,
+		columnInfo.SourceFusionColumnInfoId,
+		columnInfo.PositionInFusion,
+		columnInfo.TotalInFusion,
+		columnInfo.FusionColumnGroupId,
+		columnInfo.FusionSeparator,
+		columnInfo.SourceSliceColumnInfoId,
+	}
 	var dml string
-	dml = `
-             merge into column_info (
+	dml = ` merge into column_info (
 		 ID 
 		 ,NAME 
 		 ,DATA_TYPE 
@@ -217,83 +233,19 @@ func PutColumnInfo(ctx context.Context, columnInfo *dto.ColumnInfoType) (err err
 		 ,MOVING_STDDEV
 		 ,POSITION_IN_PK
 		 ,TOTAL_IN_PK
-		 ,SOURCE_FUSION_COLUMN_ID
+		 ,SOURCE_FUSION_COLUMN_INFO_ID
          ,POSITION_IN_FUSION
          ,TOTAL_IN_FUSION
 		 ,FUSION_COLUMN_GROUP_ID
-       ) key(ID) values (
-		%v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v,
-		%v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v,
-		%v, %v, %v, %v, %v, %v, %v, %v, %v, %v
-		)`
-	switch currentDbType {
-	case H2:
+         ,FUSION_SEPARATOR
+		 ,SOURCE_SLICE_COLUMN_INFO_ID
+       ) key(ID) values (`+ParamPlaces(len(data))+`)`
 
-		dml = fmt.Sprintf(dml,
-			columnInfo.Id,
-			columnInfo.ColumnName.SQLString(),
-			columnInfo.DataType.SQLString(),
-			columnInfo.RealDataType.SQLString(),
-			columnInfo.DataLength,
-			columnInfo.DataPrecision,
-			columnInfo.DataScale,
-			columnInfo.Position,
-			columnInfo.Nullable,
-			columnInfo.TotalRowCount,
-			columnInfo.UniqueRowCount,
-			columnInfo.HashUniqueCount,
-			columnInfo.TableInfoId,
-			columnInfo.NonNullCount,
-			columnInfo.NumericCount,
-			columnInfo.MinNumericValue,
-			columnInfo.MaxNumericValue,
-			columnInfo.MinStringValue.SQLString(),
-			columnInfo.MaxStringValue.SQLString(),
-			columnInfo.IntegerCount,
-			columnInfo.IntegerUniqueCount,
-			columnInfo.MovingMean,
-			columnInfo.MovingStdDev,
-			columnInfo.PositionInPK,
-			columnInfo.TotalInPK,
-			columnInfo.SourceFusionColumnId,
-			columnInfo.PositionInFusion,
-			columnInfo.TotalInFusion,
-			columnInfo.FusionColumnGroupId,
-		)
+       _,err = ExecContext(ctx,dml,data...)
 
-		_, err = iDb.Exec(dml)
-	default:
-		dml = strings.Replace(dml, "%v", "?", -1)
-
-		_, err = iDb.Exec(dml,
-			columnInfo.Id,
-			columnInfo.ColumnName,
-			columnInfo.DataType,
-			columnInfo.RealDataType,
-			columnInfo.DataLength,
-			columnInfo.DataPrecision,
-			columnInfo.DataScale,
-			columnInfo.Position,
-			columnInfo.Nullable,
-			columnInfo.TotalRowCount,
-			columnInfo.UniqueRowCount,
-			columnInfo.HashUniqueCount,
-			columnInfo.TableInfoId,
-			columnInfo.NonNullCount,
-			columnInfo.IntegerCount,
-			columnInfo.IntegerUniqueCount,
-			columnInfo.MovingMean,
-			columnInfo.MovingStdDev,
-			columnInfo.PositionInPK,
-			columnInfo.TotalInPK,
-			columnInfo.SourceFusionColumnId,
-			columnInfo.PositionInFusion,
-			columnInfo.TotalInFusion,
-			columnInfo.FusionColumnGroupId,
-		)
-	}
 	if err != nil {
 		if newOne {
+			columnInfo.Id = nullable.NullInt64{}
 			err = fmt.Errorf("could not add a new column_info row: %v", err)
 		} else {
 			err = fmt.Errorf("could not update column_info row with id=%v: %v", columnInfo.Id.Value(), err)
@@ -306,17 +258,11 @@ func PutColumnInfo(ctx context.Context, columnInfo *dto.ColumnInfoType) (err err
 
 func fusionColumnGroup(
 	ctx context.Context,
-	where whereFunc,
-	args []interface{},
+	where whereFuncType,
 ) (result dto.FusionColumnGroupListType, err error) {
 
-	tx, err := iDb.Conn(ctx)
-	if err != nil {
-		return
-	}
-
 	result = make([]*dto.FusionColumnGroupType, 0)
-
+	var args varray
 	query := "SELECT " +
 		" ID" +
 		" ,TABLE_INFO_ID" +
@@ -324,10 +270,12 @@ func fusionColumnGroup(
 		" FROM FUSION_COLUMN_GROUP"
 
 	if where != nil {
-		query = query + where()
+		var whereClause string
+		whereClause, args = where()
+		query = query + whereClause
 	}
 
-	rws, err := tx.QueryContext(ctx, query, args...)
+	rws, err := QueryContext(ctx, query, args...)
 	if err != nil {
 		return
 	}
@@ -395,44 +343,23 @@ func fusionColumnGroupByTableId(
 	ctx context.Context,
 	Id int64,
 ) (result dto.FusionColumnGroupListType, err error) {
-	where := MakeWhereFunc()
-	args := MakeWhereArgs()
-	whereString := " WHERE TABLE_INFO_ID = %v"
-	switch currentDbType {
-	case H2:
-		where = func() string {
-			return fmt.Sprintf(whereString, Id)
-		}
-	default:
-		where = func() string {
-			return strings.Replace(whereString, "%v", "?", -1)
-		}
-		args = append(args, Id)
-	}
 
-	result, err = fusionColumnGroup(ctx, where, args)
+	result, err = fusionColumnGroup(ctx,
+		func()(string,varray) {
+			return " WHERE TABLE_INFO_ID = ?",varray{Id}
+		},
+		)
 	return
 }
 
 
 func ColumnsByGroupId(ctx context.Context, groupId int64) (result dto.ColumnInfoListType, err error) {
 
-	where := MakeWhereFunc()
-	args := MakeWhereArgs()
-	whereString := " WHERE FUSION_COLUMN_GROUP_ID = %v"
-	switch currentDbType {
-	case H2:
-		where = func() string {
-			return fmt.Sprintf(whereString, groupId)
-		}
-	default:
-		where = func() string {
-			return strings.Replace(whereString, "%v", "?", -1)
-		}
-		args = append(args, groupId)
-	}
-
-	result, err = columnInfo(ctx, where, args)
+	result, err = columnInfo(ctx,
+		func()(string,varray) {
+			return " WHERE FUSION_COLUMN_GROUP_ID = ?", varray{groupId}
+		},
+	)
 	return
 
 }

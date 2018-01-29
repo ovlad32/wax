@@ -5,21 +5,21 @@ import (
 	"fmt"
 	"github.com/ovlad32/wax/hearth/dto"
 	"github.com/ovlad32/wax/hearth/handling"
-	"github.com/ovlad32/wax/hearth/repository"
-	dump "github.com/ovlad32/wax/hearth/process/dump"
-	"time"
-	"strings"
-	"path"
-	"github.com/ovlad32/wax/hearth/misc"
 	"github.com/ovlad32/wax/hearth/handling/nullable"
+	"github.com/ovlad32/wax/hearth/misc"
+	dump "github.com/ovlad32/wax/hearth/process/dump"
+	"github.com/ovlad32/wax/hearth/repository"
+	"path"
+	"strings"
+	"time"
 )
-
 
 type BitsetIndexConfigType struct {
 	DumperConfig *dump.DumperConfigType
 	BitsetPath   string
 	Log          handling.Logger
 }
+
 func validateBitsetConfig(cfg *BitsetIndexConfigType) (err error) {
 	if cfg == nil {
 		err = fmt.Errorf("config is not initialized")
@@ -48,7 +48,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 	bitsetContent dto.BitsetContentArrayType,
 	processingColumnListInterface dto.ColumnListInterface,
 ) (err error) {
-	funcName:= "buildBitsets"
+	funcName := "buildBitsets"
 	log := indexer.config.Log
 	err = validateBitsetConfig(&indexer.config)
 	if err != nil {
@@ -60,7 +60,6 @@ func (indexer *BitsetIndexerType) buildBitsets(
 		return
 	}
 
-
 	if len(bitsetContent) == 0 {
 		err = fmt.Errorf("bitset content is not defined")
 		return
@@ -71,21 +70,19 @@ func (indexer *BitsetIndexerType) buildBitsets(
 		return err
 	}
 
-	processingColumns := processingColumnListInterface.ColumnList();
+	processingColumns := processingColumnListInterface.ColumnList()
 	if len(processingColumns) == 0 {
 		err = fmt.Errorf("parameter 'processingColumns' is empty")
 		return err
 	}
 
 	targetTable := processingColumns[0].TableInfo
-	targetTableColumns:= targetTable.ColumnList()
+	targetTableColumns := targetTable.ColumnList()
 	targetTableColumnCount := len(targetTableColumns)
 
-	offPostitions,err := processingColumns.ColumnPositionFlagsAs(misc.PositionOff)
-
+	offPostitions, err := processingColumns.ColumnPositionFlagsAs(misc.PositionOff)
 
 	dumperConfig := indexer.config.DumperConfig
-
 
 	var started time.Time
 	var lineStarted uint64 = 1
@@ -98,7 +95,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 		splitColumnInfoList dto.ColumnInfoListType
 	}
 
-	type splitColumnListDataType []*splitColumnDataType;
+	type splitColumnListDataType []*splitColumnDataType
 	var splitColumnMap map[string]map[int]dto.ColumnInfoListType
 
 	//type fusionDataListType []*fusionDataType;
@@ -116,20 +113,17 @@ func (indexer *BitsetIndexerType) buildBitsets(
 		return strings.Join(a,";")
 	}*/
 
-
-
-
 	processRowContent := func(
 		ctx context.Context,
 		config *dump.DumperConfigType,
 		lineNumber,
 		DataPosition uint64,
 		rowFields [][]byte,
-		_[]byte,
+		_ []byte,
 	) (err error) {
 
-		if len(rowFields) != targetTableColumnCount  {
-			err = fmt.Errorf("Column count mismach given: %v, expected %v",len(rowFields),targetTableColumnCount)
+		if len(rowFields) != targetTableColumnCount {
+			err = fmt.Errorf("Column count mismach given: %v, expected %v", len(rowFields), targetTableColumnCount)
 			return
 		}
 		if log != nil {
@@ -145,36 +139,33 @@ func (indexer *BitsetIndexerType) buildBitsets(
 		maxColumnPosition := targetTable.MaxColumnPosition()
 		var splitColumnsAdded = 0
 
-
-
 		for columnNumber, column := range targetTableColumns {
 
 			if offPostitions[columnNumber] || len(rowFields[columnNumber]) == 0 {
 				continue
 			}
-
-			if len(config.FusionColumnSeparators) >= columnNumber && config.FusionColumnSeparators[columnNumber] != 0 {
-
-				SplitData := misc.SplitDumpLine(rowFields[columnNumber],config.FusionColumnSeparators[columnNumber])
+			if column.FusionSeparator.Valid() && column.FusionSeparator.Value() != "" {
+				fusionColumnSeparator := byte(column.FusionSeparator.Value()[0:1][0])
+				SplitData := misc.SplitDumpLine(rowFields[columnNumber], fusionColumnSeparator)
 				if len(SplitData) > 1 {
-					if fusionColunmList  == nil {
-						fusionColunmList  = make(dto.FusionColumnListType, 0, len(targetTableColumns))
+					if fusionColunmList == nil {
+						fusionColunmList = make(dto.FusionColumnListType, 0, len(targetTableColumns))
 						splitColumnListData = make(splitColumnListDataType, 0, len(targetTableColumns))
 
 					}
 
 					fusionColunmList = append(
 						fusionColunmList,
-								&dto.FusionColumnType{
-									SourceColumnPosition: columnNumber,
-									ColumnCount:          len(SplitData),
-								},
+						&dto.FusionColumnType{
+							SourceColumnPosition: columnNumber,
+							ColumnCount:          len(SplitData),
+						},
 					)
 
-					splitColumnListData = append (
+					splitColumnListData = append(
 						splitColumnListData,
 						&splitColumnDataType{
-							splitDataBytes:        SplitData,
+							splitDataBytes:   SplitData,
 							sourceColumnInfo: column,
 						},
 					)
@@ -197,33 +188,33 @@ func (indexer *BitsetIndexerType) buildBitsets(
 		if fusionColunmList != nil {
 			if splitColumnMap == nil {
 				splitColumnMap = make(map[string]map[int]dto.ColumnInfoListType)
-				groups, err := repository.FusionColumnGroupByTable(ctx,targetTable)
+				groups, err := repository.FusionColumnGroupByTable(ctx, targetTable)
 				if err != nil {
 					//TODO:
 				}
-				if groups != nil && len(groups)>0 {
+				if groups != nil && len(groups) > 0 {
 					for _, fusionColumnGroup := range groups {
 						var splitColumns dto.ColumnInfoListType
-						splitColumns, err = repository.ColumnsByGroupId(ctx,fusionColumnGroup.Id.Value())
+						splitColumns, err = repository.ColumnsByGroupId(ctx, fusionColumnGroup.Id.Value())
 						if err != nil {
 							//TODO:
 						}
 						if len(splitColumns) > 0 {
 							splitColumnsAdded = len(splitColumns)
 							columnIdMap := make(map[int64]dto.ColumnInfoListType)
-							for _ , splitColumn := range splitColumns {
-								if columnList,found := columnIdMap[splitColumn.SourceFusionColumnId.Value()]; !found {
-									columnList = make(dto.ColumnInfoListType,0,len(splitColumnListData))
-									columnList = append(columnList,splitColumn)
-									columnIdMap[splitColumn.SourceFusionColumnId.Value()] = columnList
+							for _, splitColumn := range splitColumns {
+								if columnList, found := columnIdMap[splitColumn.SourceFusionColumnInfoId.Value()]; !found {
+									columnList = make(dto.ColumnInfoListType, 0, len(splitColumnListData))
+									columnList = append(columnList, splitColumn)
+									columnIdMap[splitColumn.SourceFusionColumnInfoId.Value()] = columnList
 								} else {
-									columnList = append(columnList,splitColumn)
-									columnIdMap[splitColumn.SourceFusionColumnId.Value()] = columnList
+									columnList = append(columnList, splitColumn)
+									columnIdMap[splitColumn.SourceFusionColumnInfoId.Value()] = columnList
 								}
 							}
 							splitColumnMap[fusionColumnGroup.GroupKey] = make(map[int]dto.ColumnInfoListType)
-							for columnIndex,tabColumn := range targetTable.ColumnList() {
-                            	if columnList,found := columnIdMap[tabColumn.Id.Value()]; found {
+							for columnIndex, tabColumn := range targetTable.ColumnList() {
+								if columnList, found := columnIdMap[tabColumn.Id.Value()]; found {
 									splitColumnMap[fusionColumnGroup.GroupKey][columnIndex] = columnList
 								}
 							}
@@ -234,40 +225,37 @@ func (indexer *BitsetIndexerType) buildBitsets(
 
 			}
 
-
 			fusionColumnGroupKey := fusionColunmList.String()
-			if mappedSplitColumns,mappedFound := splitColumnMap[fusionColumnGroupKey];!mappedFound {
+			if mappedSplitColumns, mappedFound := splitColumnMap[fusionColumnGroupKey]; !mappedFound {
 				fusionColumnGroup := &dto.FusionColumnGroupType{
-						TableInfoId:targetTable.Id,
-						GroupKey:fusionColumnGroupKey,
-						}
-					err = repository.PutFusionColumnGroup(ctx,fusionColumnGroup)
-					if err != nil {
-						//TODO:
-					}
-
-
+					TableInfoId: targetTable.Id,
+					GroupKey:    fusionColumnGroupKey,
+				}
+				err = repository.PutFusionColumnGroup(ctx, fusionColumnGroup)
+				if err != nil {
+					//TODO:
+				}
 
 				mappedSplitColumns = make(map[int]dto.ColumnInfoListType)
 				//splitColumnInfoList := make(dto.ColumnInfoListType,0,len(fusionSplitRowData))
 				for fusionIndex, scd := range splitColumnListData {
-					if scd.splitColumnInfoList  == nil {
+					if scd.splitColumnInfoList == nil {
 						scd.splitColumnInfoList = make(dto.ColumnInfoListType, 0, fusionColunmList[fusionIndex].ColumnCount)
 					}
-					for splitColumnNumber := 0; splitColumnNumber < fusionColunmList[fusionIndex].ColumnCount; splitColumnNumber ++{
-						splitColumnsAdded ++
+					for splitColumnNumber := 0; splitColumnNumber < fusionColunmList[fusionIndex].ColumnCount; splitColumnNumber++ {
+						splitColumnsAdded++
 
 						splitColumn := &dto.ColumnInfoType{
-							DataLength:           scd.sourceColumnInfo.DataLength,
-							DataType:             scd.sourceColumnInfo.DataType,
-							RealDataType:         scd.sourceColumnInfo.RealDataType,
-							Nullable:             scd.sourceColumnInfo.Nullable,
-							TableInfoId:          scd.sourceColumnInfo.TableInfoId,
-							TableInfo:            scd.sourceColumnInfo.TableInfo,
-							SourceFusionColumnId: scd.sourceColumnInfo.Id,
-							FusionColumnGroupId:  fusionColumnGroup.Id,
-							PositionInFusion:     nullable.NewNullInt64(int64(splitColumnNumber)),
-							TotalInFusion:        nullable.NewNullInt64(int64(fusionColunmList[fusionIndex].ColumnCount)),
+							DataLength:               scd.sourceColumnInfo.DataLength,
+							DataType:                 scd.sourceColumnInfo.DataType,
+							RealDataType:             scd.sourceColumnInfo.RealDataType,
+							Nullable:                 scd.sourceColumnInfo.Nullable,
+							TableInfoId:              scd.sourceColumnInfo.TableInfoId,
+							TableInfo:                scd.sourceColumnInfo.TableInfo,
+							SourceFusionColumnInfoId: scd.sourceColumnInfo.Id,
+							FusionColumnGroupId:      fusionColumnGroup.Id,
+							PositionInFusion:         nullable.NewNullInt64(int64(splitColumnNumber)),
+							TotalInFusion:            nullable.NewNullInt64(int64(fusionColunmList[fusionIndex].ColumnCount)),
 							ColumnName: nullable.NewNullString(
 								fmt.Sprintf(
 									"%v(%v/%v)",
@@ -291,14 +279,14 @@ func (indexer *BitsetIndexerType) buildBitsets(
 				splitColumnMap[fusionColumnGroupKey] = mappedSplitColumns
 			} else {
 				for splitRowDataIndex, scd := range splitColumnListData {
-					found := false;
-					position := fusionColunmList[splitRowDataIndex].SourceColumnPosition;
-					if scd.splitColumnInfoList,found = mappedSplitColumns[position]; !found {
+					found := false
+					position := fusionColunmList[splitRowDataIndex].SourceColumnPosition
+					if scd.splitColumnInfoList, found = mappedSplitColumns[position]; !found {
 						//TODO:
 					}
 				}
 			}
-			for _,scd :=  range splitColumnListData {
+			for _, scd := range splitColumnListData {
 				for columnIndex := range scd.splitColumnInfoList {
 
 					drop := dto.NewSyrupDrop(scd.splitColumnInfoList[columnIndex], scd.splitDataBytes[columnIndex])
@@ -317,18 +305,16 @@ func (indexer *BitsetIndexerType) buildBitsets(
 
 		}
 
-
 		return nil
 	}
 
-	dumper,err  := dump.NewDumper(
+	dumper, err := dump.NewDumper(
 		dumperConfig,
 	)
 
 	if err != nil {
 		return err
 	}
-
 
 	if log != nil {
 		log.Info(packageName, funcName, "Start processing file %v ", pathToFile)
@@ -341,7 +327,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 	)
 
 	if err != nil {
-		fmt.Errorf("could not process dump file %v: %v", pathToFile,err)
+		fmt.Errorf("could not process dump file %v: %v", pathToFile, err)
 		return
 	} else {
 		if log != nil {
@@ -353,14 +339,14 @@ func (indexer *BitsetIndexerType) buildBitsets(
 		for _, feature := range column.ContentFeatures {
 			err = feature.UpdateStatistics(ctx)
 			if err != nil {
-				err := fmt.Errorf("could not update statistics for %v.%v(key:%v): %v ",targetTable,column,feature.Key,err)
+				err := fmt.Errorf("could not update statistics for %v.%v(key:%v): %v ", targetTable, column, feature.Key, err)
 				return err
 			}
 
 			if feature.HashUniqueCount.Valid() && feature.HashUniqueCount.Value() > 0 {
 				err = feature.WriteBitsetToDisk(ctx, indexer.config.BitsetPath, dto.HashContent)
 				if err != nil {
-					err := fmt.Errorf("could not write hash bitset data for %v.%v(key:%v): %v ",targetTable,column,feature.Key,err)
+					err := fmt.Errorf("could not write hash bitset data for %v.%v(key:%v): %v ", targetTable, column, feature.Key, err)
 					return err
 				}
 			}
@@ -373,7 +359,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 					err = feature.WriteBitsetToDisk(ctx, indexer.config.BitsetPath, dto.PureContent)
 				}
 				if err != nil {
-					err := fmt.Errorf("could not write integer bitset data for %v.%v(key:%v): %v ",targetTable,column,feature.Key,err)
+					err := fmt.Errorf("could not write integer bitset data for %v.%v(key:%v): %v ", targetTable, column, feature.Key, err)
 					return err
 				}
 			}
@@ -390,7 +376,7 @@ func (indexer BitsetIndexerType) BuildBitsets(ctx context.Context,
 	targetTable := targetTableInterface.TableInfoReference()
 
 	err = indexer.buildBitsets(ctx,
-		path.Join(pathToDumpDirectory,targetTable.PathToFile.Value()),
+		path.Join(pathToDumpDirectory, targetTable.PathToFile.Value()),
 		bitsetContent,
 		targetTable,
 	)
@@ -399,7 +385,7 @@ func (indexer BitsetIndexerType) BuildBitsets(ctx context.Context,
 		for _, feature := range column.ContentFeatures {
 			err = repository.PutContentFeature(ctx, feature)
 			if err != nil {
-				err := fmt.Errorf("could not persist statistics for %v: %v",targetTable,err)
+				err := fmt.Errorf("could not persist statistics for %v: %v", targetTable, err)
 				return err
 			}
 		}

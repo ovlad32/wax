@@ -75,10 +75,11 @@ var featureKeyStorage = featureKeyStorageType{
 func NewContentFeature(drop *SyrupDropType) (result *ContentFeatureType) {
 	result = &ContentFeatureType{
 		Column: drop.Column,
+		ColumnInfoId:drop.Column.Id,
 	}
 	result.stats.minNumericValue = math.MaxFloat64
 	result.stats.maxNumericValue = -math.MaxFloat64
-	result.stats.nonNullCount = 0
+	result.stats.totalCount = 0
 	result.stats.bitsets = make([]handling.BitsetInterface, TotalCount)
 	result.stats.bitsetCardinalities = make([]uint64, TotalCount)
 	for index := range result.stats.bitsets {
@@ -101,15 +102,15 @@ func NewSyrupFeatureStringKey(isNumeric bool, isInteger bool, isNegative bool, b
 		featureKeyStorage.Unlock()
 	} else if isNegative {
 		if isInteger {
-			result = "N"
+			result = "IN"
 		} else {
-			result = "n"
+			result = "FN"
 		}
 	} else {
 		if isInteger {
-			result = "P"
+			result = "IP"
 		} else {
-			result = "p"
+			result = "FP"
 		}
 	}
 	return result
@@ -138,7 +139,7 @@ func (feature ContentFeatureType) String() (result string) {
 	result = fmt.Sprintf("feature(Key:%v) on %v.%v.", feature.Key, feature.Column.TableInfo, feature.Column)
 	return
 }
-
+/*
 func (feature ContentFeatureType) BitsetFileName(suffix BitsetContentType) (fileName string, err error) {
 	fileName = fmt.Sprintf("%v.%v.%v.bitset",
 		feature.Column.Id.String(),
@@ -147,7 +148,7 @@ func (feature ContentFeatureType) BitsetFileName(suffix BitsetContentType) (file
 	)
 
 	return fileName, nil
-}
+}*/
 
 func (feature *ContentFeatureType) WriteBitsetToDisk(ctx context.Context, pathToDir string, contentType BitsetContentType) (err error) {
 
@@ -176,7 +177,7 @@ func (w contentFeatureBitSetWrapperType) BitSet() (handling.BitsetInterface, err
 
 func (w contentFeatureBitSetWrapperType) FileName() (string, error) {
 	return fmt.Sprintf("%v.%v.%v.bitset",
-		w.Id.String(),
+		w.ColumnInfoId.String(),
 		w.Key,
 		w.bitsetContentType,
 	), nil
@@ -229,7 +230,7 @@ func (feature *ContentFeatureType) UpdateStatistics(runContext context.Context) 
 		}
 		feature.MinStringValue = nullable.NewNullString(feature.stats.minStringValue)
 	}
-	feature.NonNullCount = nullable.NewNullInt64(int64(feature.stats.nonNullCount))
+	feature.TotalCount = nullable.NewNullInt64(int64(feature.stats.totalCount))
 
 	index := HashContent.Index()
 	if feature.stats.bitsets[index] != nil {

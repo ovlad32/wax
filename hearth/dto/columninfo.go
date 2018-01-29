@@ -34,7 +34,8 @@ type ColumnInfoType struct {
 	PositionInPK         nullable.NullInt64
 	TotalInPK            nullable.NullInt64
 	//---------------
-	SourceFusionColumnId nullable.NullInt64
+	FusionSeparator      nullable.NullString
+	SourceFusionColumnInfoId nullable.NullInt64
 	PositionInFusion     nullable.NullInt64
 	TotalInFusion        nullable.NullInt64
 	FusionColumnGroupId  nullable.NullInt64
@@ -44,6 +45,8 @@ type ColumnInfoType struct {
 	//---------------
 	ContentFeatures      ContentFeatureMapType
 	ContentFeatureCount  nullable.NullInt64
+	//
+	SourceSliceColumnInfoId nullable.NullInt64
 }
 
 type ColumnInfoListType []*ColumnInfoType

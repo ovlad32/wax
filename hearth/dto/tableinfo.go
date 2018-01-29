@@ -15,7 +15,8 @@ type TableInfoType struct {
 	Indexed       nullable.NullString `json:"data-indexed"`
 	PathToFile    nullable.NullString `json:"path-to-file"`
 	PathToDataDir nullable.NullString `json:"path-to-data-dir"`
-	Chunk         nullable.NullString `json:"chunk"`
+	//Chunk         nullable.NullString `json:"chunk"`
+	SourceSliceTableInfoId nullable.NullInt64
 	Metadata      *MetadataType
 	Columns       []*ColumnInfoType `json:"columns"`
 }

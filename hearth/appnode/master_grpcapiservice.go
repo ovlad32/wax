@@ -6,7 +6,8 @@ import (
 	pb "github.com/ovlad32/wax/hearth/grpcservice"
 	"github.com/ovlad32/wax/hearth/repository"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/net/context"
+	xcontext "golang.org/x/net/context"
+	"context"
 	"google.golang.org/grpc"
 	"net"
 	"strconv"
@@ -80,7 +81,7 @@ func (s slaveNodeInfoType) NodeId() string {
 	}
 }
 func (s *appNodeServiceType) AppNodeRegister(
-	ctx context.Context,
+	ctx xcontext.Context,
 	request *pb.AppNodeRegisterRequest,
 ) (result *pb.AppNodeRegisterResponse,
 	err error,
@@ -95,7 +96,7 @@ func (s *appNodeServiceType) AppNodeRegister(
 		slave.Address = request.LocalAddress
 		slave.State = "A"
 		slave.Role = "SLAVE"
-		err = repository.PutAppNode(slave.AppNodeType)
+		err = repository.PutAppNode(context.Background(),slave.AppNodeType)
 		if err != nil {
 			result.ErrorMessage = fmt.Sprintf("%v", err)
 			s.logger.Error(err)
@@ -143,7 +144,7 @@ func (s *appNodeServiceType) AppNodeRegister(
 			slave.Address = request.LocalAddress
 			slave.State = "A"
 			slave.Role = "SLAVE"
-			err = repository.PutAppNode(slave.AppNodeType)
+			err = repository.PutAppNode(context.Background(),slave.AppNodeType)
 			if err != nil {
 				result.ErrorMessage = fmt.Sprintf("%v", err)
 				s.logger.Error(err)
@@ -163,7 +164,7 @@ func (s *appNodeServiceType) AppNodeRegister(
 }
 
 func (s *appNodeServiceType) AppNodeHeartBeat(
-	ctx context.Context,
+	ctx xcontext.Context,
 	request *pb.HeartBeatRequest,
 ) (
 	result *pb.HeartBeatResponse,

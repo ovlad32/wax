@@ -7,13 +7,8 @@ import (
 	"context"
 )
 
-func metadata(ctx context.Context, where whereFunc, args []interface{}) (result []*dto.MetadataType, err error) {
-	tx, err := iDb.Begin()
-	if err != nil {
-		return
-	}
-	defer tx.Rollback()
-
+func metadata(ctx context.Context, where whereFuncType) (result []*dto.MetadataType, err error) {
+	var args varray
 	result = make([]*dto.MetadataType, 0)
 	query := "SELECT " +
 		" ID" +
@@ -23,10 +18,12 @@ func metadata(ctx context.Context, where whereFunc, args []interface{}) (result 
 		" FROM METADATA "
 
 	if where != nil {
-		query = query + where()
+		var whereClause string
+		whereClause,args = where()
+		query = query + whereClause
 	}
 //	query = query + " ORDER BY ID"
-	rws, err := tx.QueryContext(ctx,query,args...)
+	rws, err := QueryContext(ctx,query,args...)
 	if err != nil {
 		return
 	}
@@ -47,29 +44,15 @@ func metadata(ctx context.Context, where whereFunc, args []interface{}) (result 
 	return
 }
 
-func HighestDatabaseConfigVersion(DatabaseConfigId uint) (result nullable.NullInt64, err error) {
-	tx, err := iDb.Begin()
-	if err != nil {
-
-		return
-	}
-	defer tx.Rollback()
-	whereString := " WHERE DATABASE_CONFIG_ID = %v"
-	whereArgs := MakeWhereArgs()
-	switch  currentDbType {
-	case H2:
-		whereString = fmt.Sprintf(whereString,DatabaseConfigId)
-	default:
-		whereString = fmt.Sprintf(whereString,"?")
-		whereArgs = append(whereArgs,DatabaseConfigId)
-	}
-
-	err = tx.QueryRow(fmt.Sprintf("SELECT MAX(VERSION) FROM METADATA "+whereString,whereArgs)).Scan(result)
-
+func HighestDatabaseConfigVersion(ctx context.Context, DatabaseConfigId uint) (result nullable.NullInt64, err error) {
+	err = QueryRowContext(ctx,
+		`select max(version) from metadata where database_config_id = ?`,
+			varray{DatabaseConfigId},
+			).Scan(result)
 	return
 }
 
-func LastTakenMetadata(ctx context.Context, DatabaseConfigId uint) (result *dto.MetadataType, err error) {
+/*func LastTakenMetadata(ctx context.Context, DatabaseConfigId uint) (result *dto.MetadataType, err error) {
 	version, err := HighestDatabaseConfigVersion(DatabaseConfigId)
 
 	tx, err := iDb.Begin()
@@ -98,23 +81,13 @@ func LastTakenMetadata(ctx context.Context, DatabaseConfigId uint) (result *dto.
 	}
 	return
 }
-
+*/
 func MetadataById(ctx context.Context, metadataId int) (result *dto.MetadataType, err error) {
-	args := MakeWhereArgs()
-	whereString := " WHERE ID = %v"
-	switch currentDbType {
-	case H2:
-		whereString = fmt.Sprintf(whereString, metadataId)
-	default:
-		whereString = fmt.Sprintf(whereString, "?")
-		args = append(args,metadataId)
-	}
 	results, err := metadata(
 		ctx,
-		func() string {
-			return whereString
+		func() (string,varray) {
+			return " WHERE ID = ?",varray{metadataId}
 		},
-		args,
 	)
 	if err == nil && len(results) > 0 {
 		result = results[0]

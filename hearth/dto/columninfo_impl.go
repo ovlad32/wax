@@ -28,24 +28,24 @@ func (ci *ColumnInfoType) FindContentFeatureByStringKey(key string, initFunc fun
 
 func (col *ColumnInfoType) AggregateDataCategoryStatistics() (err error) {
 	funcName := "ColumnInfoType.AggregateDataCategoryStatistics"
-	var hashUniqueCount, nonNullCount int64 = 0, 0
+	var hashUniqueCount, totalCount int64 = 0, 0
 	for _, category := range col.ContentFeatures {
 		if !category.HashUniqueCount.Valid() {
 			err = fmt.Errorf("HashUniqueCount statistics is empty in %v", category)
 			tracelog.Error(err, packageName, funcName)
 			return err
 		}
-		if !category.NonNullCount.Valid() {
+		if !category.TotalCount.Valid() {
 			err = fmt.Errorf("NonNullCount statistics is empty in %v", category)
 			tracelog.Error(err, packageName, funcName)
 			return err
 		}
 		hashUniqueCount += category.HashUniqueCount.Value()
-		nonNullCount += category.NonNullCount.Value()
+		totalCount += category.TotalCount.Value()
 	}
 
 	col.HashUniqueCount = nullable.NewNullInt64(int64(hashUniqueCount))
-	col.NonNullCount = nullable.NewNullInt64(int64(nonNullCount))
+	col.NonNullCount = nullable.NewNullInt64(int64(totalCount))
 	return nil
 }
 
@@ -142,16 +142,16 @@ func (c ColumnInfoListType) ColumnPositionFlagsAs(flag misc.PositionBitType) (re
 	var table  *TableInfoType
 	for index:=0; index<len(c); index ++ {
 		if table == nil {
-			table := c[index].TableInfoReference()
+			table = c[index].TableInfoReference()
 			if table == nil {
 				err = fmt.Errorf("reference to parent table is not initialized")
 				return
 			}
 		} else {
-			if c[index].TableInfoReference() != nil {
+			if c[index].TableInfoReference() == nil {
 				err = fmt.Errorf("reference to parent table is not initialized")
 				return
-			} else {
+			} else if  c[index].TableInfoReference() != table {
 				err = fmt.Errorf("column %v has not been found in table %v", c[index] , table)
 				return nil, err
 			}

@@ -4,56 +4,59 @@ import (
 	"context"
 	"fmt"
 	"github.com/ovlad32/wax/hearth/dto"
+	"github.com/ovlad32/wax/hearth/handling/nullable"
 )
 
-func tableInfo(ctx context.Context, where whereFunc, args []interface{}) (result []*dto.TableInfoType, err error) {
+func tableInfo(ctx context.Context, where whereFuncType) (result []*dto.TableInfoType, err error) {
 
-	tx, err := iDb.Conn(ctx)
-	if err != nil {
-		return
-	}
-	result = make([]*dto.TableInfoType, 0)
-
-	query := "SELECT " +
-		" ID" +
-		" ,DATABASE_NAME" +
-		" ,SCHEMA_NAME" +
-		" ,NAME" +
-		" ,ROW_COUNT" +
-		" ,DUMPED" +
-		" ,PATH_TO_FILE" +
-		" ,PATH_TO_DATA_DIR" +
-		" ,METADATA_ID" +
-		" FROM TABLE_INFO "
+	result = make([]*dto.TableInfoType, 0, 1)
+	var args []interface{}
+	query := `SELECT 
+		 ID
+		 ,DATABASE_NAME
+		 ,SCHEMA_NAME
+		 ,NAME
+		 ,ROW_COUNT
+		 ,DUMPED
+         ,INDEXED
+		 ,PATH_TO_FILE
+		 ,PATH_TO_DATA_DIR
+		 ,METADATA_ID
+         ,SOURCE_SLICE_TABLE_INFO_ID
+		 FROM TABLE_INFO `
 
 	if where != nil {
-		query = query + where()
+		var whereClause string
+		whereClause, args = where()
+		query = query + whereClause
 	}
-//	query = query + " ORDER BY NAME"
-	rws, err := tx.QueryContext(ctx, query, args...)
+	rows, err := QueryContext(ctx,query,args...)
 	if err != nil {
 		return
 	}
-	defer rws.Close()
+	defer rows.Close()
 
-	for rws.Next() {
+	for rows.Next() {
 		select {
 		case <-ctx.Done():
 			break
 		default:
 			var row dto.TableInfoType
-			err = rws.Scan(
+			err = rows.Scan(
 				&row.Id,
 				&row.DatabaseName,
 				&row.SchemaName,
 				&row.TableName,
 				&row.RowCount,
 				&row.Dumped,
+				&row.Indexed,
 				&row.PathToFile,
 				&row.PathToDataDir,
 				&row.MetadataId,
+				&row.SourceSliceTableInfoId,
 			)
 			if err != nil {
+				err = fmt.Errorf("could not scan table_info entity data: %v", err)
 				return
 			}
 			result = append(result, &row)
@@ -62,27 +65,93 @@ func tableInfo(ctx context.Context, where whereFunc, args []interface{}) (result
 	return
 }
 
-func TableInfoByMetadata(ctx context.Context, metadata *dto.MetadataType) (result []*dto.TableInfoType, err error) {
-	where := MakeWhereFunc()
-	args := MakeWhereArgs()
+func TableInfoSeqId() (id int64, err error) {
+	err = iDb.QueryRow("select nextval('TABLE_INFO_SEQ')").Scan(&id)
+	if err != nil {
+		err = fmt.Errorf("could not get a sequential number from TABLE_INFO_SEQ: %v", err)
+	}
+	return
+}
 
-	if metadata != nil && metadata.Id.Valid() {
-		whereString := " WHERE METADATA_ID = %v and DUMPED=true"
-		switch currentDbType {
-		case H2:
-			where = func() string {
-				return fmt.Sprintf(whereString, metadata.Id)
-			}
-		default:
-			whereString = fmt.Sprintf(whereString, "?")
-			where = func() string {
-				return whereString
-			}
-			args = append(args, metadata.Id)
-		}
+func PutTableInfo(ctx context.Context, entity *dto.TableInfoType) (err error) {
+	var newOne bool
+
+	if entity == nil {
+		err = fmt.Errorf("table reference is not initialized")
+		return
 	}
 
-	result, err = tableInfo(ctx, where, args)
+	if !entity.Id.Valid() {
+		var id int64
+		id, err = TableInfoSeqId()
+		if err != nil {
+			return
+		}
+		entity.Id = nullable.NewNullInt64(id)
+		newOne = true
+	}
+
+	args := []interface{}{
+		entity.Id,
+		entity.DatabaseName,
+		entity.Dumped,
+		entity.Indexed,
+		entity.TableName,
+		entity.PathToDataDir,
+		entity.PathToFile,
+		entity.RowCount,
+		entity.SchemaName,
+		entity.MetadataId,
+		entity.SourceSliceTableInfoId,
+	}
+
+
+	_,err = ExecContext(ctx,
+		`merge into table_info (
+			ID
+			,DATABASE_NAME
+			,DUMPED
+			,INDEXED
+			,NAME
+			,PATH_TO_DATA_DIR
+			,PATH_TO_FILE
+			,ROW_COUNT
+			,SCHEMA_NAME
+			,METADATA_ID
+			,SOURCE_SLICE_TABLE_INFO_ID
+       ) key(ID) values (`+ParamPlaces(len(args))+`)`,
+       	args...,
+       	)
+
+	if err != nil {
+		if newOne {
+			entity.Id = nullable.NullInt64{}
+			err = fmt.Errorf("could not add a new table_info row: %v", err)
+		} else {
+			err = fmt.Errorf("could not update table_info row with id=%v: %v", entity.Id.Value(), err)
+		}
+		return
+	}
+	return
+}
+
+func TableInfoByMetadata(ctx context.Context, metadata *dto.MetadataType) (result []*dto.TableInfoType, err error) {
+
+	if metadata == nil {
+		err = fmt.Errorf("metadata is not initialized")
+		return
+	}
+	if !metadata.Id.Valid() {
+		err = fmt.Errorf("metadata.id is not initialized!")
+		return
+	}
+
+	result, err = tableInfo(
+		ctx,
+		func()(string,varray){
+			return " WHERE METADATA_ID = ? and DUMPED = true", varray{metadata.Id}
+			},
+		)
 
 	if err != nil {
 		return
@@ -99,31 +168,23 @@ func TableInfoByMetadata(ctx context.Context, metadata *dto.MetadataType) (resul
 }
 
 func TableInfoById(ctx context.Context, id int) (result *dto.TableInfoType, err error) {
-	where := MakeWhereFunc()
-	args := MakeWhereArgs()
-	whereString := " WHERE ID = %v and DUMPED=true"
 
-	switch currentDbType {
-	case H2:
-		where = func() string {
-			return fmt.Sprintf(whereString, id)
-		}
-	default:
-		where = func() string {
-			return fmt.Sprintf(whereString, "?")
-		}
-		args = append(args, id)
-	}
+	res, err := tableInfo(
+		ctx,
+		func()(string,varray){
+			return " WHERE ID = ? ", varray{id}
+		},
+	)
 
-	res, err := tableInfo(ctx, where, args)
 	if err == nil && len(res) > 0 {
 		res[0].Columns, err = ColumnInfoByTable(ctx, res[0])
+		if err != nil {
+			err = fmt.Errorf("could not read columns for table %v: %v", res[0], err)
+			return
+		}
 		if err == nil {
 			result = res[0]
 		}
 	}
 	return
 }
-
-
-

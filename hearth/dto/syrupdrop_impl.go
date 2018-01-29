@@ -45,6 +45,7 @@ func (drop *SyrupDropType) DiscoverContentFeature(buildContentBitset bool) {
 		func() (result *ContentFeatureType) {
 			result = NewContentFeature(drop)
 			result.Key = featureKey
+			result.ByteLength = drop.RawDataLength
 			result.IsNumeric = isNumeric
 			result.IsInteger = isInteger
 			result.IsNegative = isNegative
@@ -52,7 +53,7 @@ func (drop *SyrupDropType) DiscoverContentFeature(buildContentBitset bool) {
 		},
 	)
 
-	drop.ContentFeature.stats.nonNullCount++
+	drop.ContentFeature.stats.totalCount++
 
 	if isNumeric {
 		if drop.ContentFeature.stats.maxNumericValue < floatValue {

@@ -4,6 +4,7 @@ import (
 	"github.com/ovlad32/wax/hearth/dto"
 	"github.com/ovlad32/wax/hearth/handling/nullable"
 	"fmt"
+	"context"
 )
 
 func CategorySplitSeqId() (id int64, err error) {
@@ -14,7 +15,7 @@ func CategorySplitSeqId() (id int64, err error) {
 	return
 }
 
-func PutCategorySplit(entity *dto.CategorySplitType) (err error){
+func PutCategorySplit(ctx context.Context, entity *dto.CategorySplitType) (err error){
 	if entity == nil {
 		err = fmt.Errorf("categorySplit reference is not initialized")
 		return
@@ -42,31 +43,21 @@ func PutCategorySplit(entity *dto.CategorySplitType) (err error){
 		newOne = true
 	}
 
-	var dml string
 	if  newOne {
-		switch currentDbType {
-		case H2:
-			dml = "insert into category_split(id,table_info_id,status) values(%v,%v,'%v')"
-			dml = fmt.Sprintf(dml,entity.Id,entity.TableInfoId,entity.Status)
-			_,err = iDb.Exec(dml)
-		default:
-			dml = "insert into category_split(id,table_info_id,status) values(?,?,?)"
-			_,err = iDb.Exec(dml,entity.Id,entity.TableInfoId,entity.Status)
-		}
+		_, err = ExecContext(ctx,
+			`insert into category_split(id,table_info_id,status) values(?,?,?)`,
+				entity.Id,entity.TableInfoId,entity.Status,
+		)
 		if err != nil {
 			err = fmt.Errorf("could not add a new category_split row: %v",err)
+			entity.Id = nullable.NullInt64{}
 			return
 		}
 	} else {
-		switch currentDbType {
-		case H2:
-			dml = "update category_split set built=%v, status='%v' where id = %v"
-			dml = fmt.Sprintf(dml,entity.Built,entity.Status,entity.Id)
-			_,err = iDb.Exec(dml)
-		default:
-			dml = "update category_split set built=?, status=? where id = ?"
-			_,err = iDb.Exec(dml,entity.Built,entity.Status,entity.Id)
-		}
+		_,err =ExecContext(ctx,
+			`update category_split set built=?, status=? where id=?`,
+				entity.Built,entity.Status,entity.Id,
+		)
 		if err != nil {
 			err = fmt.Errorf("could not update category_split row where id=%v: %v",entity.Id.Value(), err)
 			return
@@ -75,11 +66,7 @@ func PutCategorySplit(entity *dto.CategorySplitType) (err error){
 	return
 }
 
-
-
-
-
-func PutCategorySplitColumn(entity *dto.CategorySplitColumnType) (err error) {
+func PutCategorySplitColumn(ctx context.Context, entity *dto.CategorySplitColumnType) (err error) {
 	if entity == nil {
 		err = fmt.Errorf("categorySplitColumn reference is not initialized")
 		return
@@ -121,29 +108,21 @@ func PutCategorySplitColumn(entity *dto.CategorySplitColumnType) (err error) {
 		newOne = true
 	}
 
-	var dml string
 	if  newOne {
-		switch currentDbType {
-		case H2:
-			dml = "insert into category_split_column(id,category_split_id,column_info_id) values(%v,%v,%v)"
-			dml = fmt.Sprintf(dml,entity.Id,entity.CategorySplitId,entity.ColumnInfoId)
-			_,err = iDb.Exec(dml)
-		default:
-			dml = "insert into category_split_column(id, category_split_id, column_info_id) values(?,?,?)"
-			_,err = iDb.Exec(dml,entity.Id,entity.CategorySplitId,entity.ColumnInfoId)
-		}
+		_,err = ExecContext(ctx,
+			`insert into category_split_column(id,category_split_id,column_info_id) values(?,?,?)`,
+				entity.Id,entity.CategorySplitId,entity.ColumnInfoId,
+		)
 		if err != nil {
 			err = fmt.Errorf("could not add a new category_split_column row: %v",err)
+			entity.Id = nullable.NullInt64{}
 			return
 		}
 	}
 	return
 }
 
-
-
-
-func PutCategorySplitColumnDataType(entity *dto.CategorySplitColumnDataType) (err error) {
+func PutCategorySplitColumnDataType(ctx context.Context, entity *dto.CategorySplitColumnDataType) (err error) {
 	if entity == nil {
 		err = fmt.Errorf("categorySplitColumnData reference is not initialized")
 		return
@@ -167,8 +146,6 @@ func PutCategorySplitColumnDataType(entity *dto.CategorySplitColumnDataType) (er
 		}
 	}
 
-
-
 	var newOne bool
 	if !entity.Id.Valid() {
 		id,err := CategorySplitSeqId()
@@ -179,29 +156,21 @@ func PutCategorySplitColumnDataType(entity *dto.CategorySplitColumnDataType) (er
 		newOne = true
 	}
 
-	var dml string
 	if  newOne {
-		switch currentDbType {
-		case H2:
-			dml = "insert into category_split_coldata(id,category_split_column_id, data) values(%v,%v,'%v')"
-			dml = fmt.Sprintf(dml,entity.Id,entity.CategorySplitColumnId,entity.Data)
-			_,err = iDb.Exec(dml)
-		default:
-			dml = "insert into category_split_coldata(id, category_split_column_id, data) values(?,?,?)"
-			_,err = iDb.Exec(dml,entity.Id,entity.CategorySplitColumnId,entity.Data)
-		}
+		_,err = ExecContext(ctx,
+			`insert into category_split_coldata(id,category_split_column_id, data) values(?,?,?)`,
+			entity.Id,entity.CategorySplitColumnId,entity.Data,
+		)
 		if err != nil {
 			err = fmt.Errorf("could not add a new category_split_coldata row: %v",err)
+			entity.Id = nullable.NullInt64{}
 			return
 		}
 	}
 	return
 }
 
-
-
-
-func PutCategorySplitRowDataType(entity *dto.CategorySplitRowDataType) (err error) {
+func PutCategorySplitRowDataType(ctx context.Context, entity *dto.CategorySplitRowDataType) (err error) {
 	if entity == nil {
 		err = fmt.Errorf("categorySplitRowData reference is not initialized")
 		return
@@ -238,27 +207,21 @@ func PutCategorySplitRowDataType(entity *dto.CategorySplitRowDataType) (err erro
 		newOne = true
 	}
 
-	var dml string
 	if  newOne {
-		switch currentDbType {
-		case H2:
-			dml = "insert into category_split_rowdata(id,category_split_id, data) values(%v,%v,'%v')"
-			dml = fmt.Sprintf(dml,entity.Id,entity.CategorySplitId,entity.Data)
-			_,err = iDb.Exec(dml)
-		default:
-			dml = "insert into category_split_rowdata(id, category_split_id, data) values(?,?,?)"
-			_,err = iDb.Exec(dml,entity.Id,entity.CategorySplitId,entity.Data)
-		}
+		_,err = ExecContext(ctx,
+			`insert into category_split_rowdata(id,category_split_id, data) values(?,?,?)`,
+			entity.Id,entity.CategorySplitId,entity.Data,
+			)
 		if err != nil {
 			err = fmt.Errorf("could not add a new category_split_rowdata row: %v",err)
+			entity.Id = nullable.NullInt64{}
 			return
 		}
 	}
 	return
 }
 
-
-func PutCategorySplitFile(entity *dto.CategorySplitFileType) (err error) {
+func PutCategorySplitFile(ctx context.Context, entity *dto.CategorySplitFileType) (err error) {
 	if entity == nil {
 		err = fmt.Errorf("categorySplitFile reference is not initialized")
 		return
@@ -295,18 +258,13 @@ func PutCategorySplitFile(entity *dto.CategorySplitFileType) (err error) {
 		newOne = true
 	}
 
-	var dml string
 	if  newOne {
-		switch currentDbType {
-		case H2:
-			dml = "insert into category_split_file(id,category_split_tbldata_id, path_to_file,row_count) values(%v,%v,'%v',%v)"
-			dml = fmt.Sprintf(dml,entity.Id,entity.CategorySplitRowDataId,entity.PathToFile,entity.RowCount)
-			_,err = iDb.Exec(dml)
-		default:
-			dml = "insert into category_split_file(id, category_split_tbldata_id, path_to_file,row_count) values(?,?,?,?)"
-			_,err = iDb.Exec(dml,entity.Id,entity.CategorySplitRowDataId,entity.PathToFile,entity.RowCount)
-		}
+		_, err =ExecContext(ctx,
+			`insert into category_split_file(id,category_split_tbldata_id, path_to_file,row_count) values(?,?,?,?)`,
+			entity.Id,entity.CategorySplitRowDataId,entity.PathToFile,entity.RowCount,
+			)
 		if err != nil {
+			entity.Id = nullable.NullInt64{}
 			err = fmt.Errorf("could not add a new category_split_file row: %v",err)
 			return
 		}

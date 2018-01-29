@@ -1,6 +1,8 @@
 package misc
 
-import "bytes"
+import (
+	"bytes"
+)
 
 //\n   U+000A line feed or newline
 const LineFeedByte = byte('\n')

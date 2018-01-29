@@ -1,27 +1,27 @@
 package main
 
 import (
-	"flag"
-	"math"
-	"github.com/goinggo/tracelog"
-	"os"
-	"log"
-	"runtime"
-	"github.com/ovlad32/wax/hearth/handling"
-	"fmt"
-	"github.com/ovlad32/wax/hearth/repository"
-	"github.com/ovlad32/wax/hearth"
-	"github.com/ovlad32/wax/hearth/process/index"
-	"github.com/ovlad32/wax/hearth/process/categorysplit"
-	"github.com/ovlad32/wax/hearth/dto"
 	"context"
-	"path"
-	"runtime/pprof"
-	"github.com/ovlad32/wax/hearth/process/sort"
-	"github.com/ovlad32/wax/hearth/misc"
-	"github.com/ovlad32/wax/hearth/process/search"
-	"github.com/sirupsen/logrus"
+	"flag"
+	"fmt"
+	"github.com/goinggo/tracelog"
+	"github.com/ovlad32/wax/hearth"
 	"github.com/ovlad32/wax/hearth/appnode"
+	"github.com/ovlad32/wax/hearth/dto"
+	"github.com/ovlad32/wax/hearth/handling"
+	"github.com/ovlad32/wax/hearth/misc"
+	"github.com/ovlad32/wax/hearth/process/categorysplit"
+	"github.com/ovlad32/wax/hearth/process/index"
+	"github.com/ovlad32/wax/hearth/process/search"
+	"github.com/ovlad32/wax/hearth/process/sort"
+	"github.com/ovlad32/wax/hearth/repository"
+	"github.com/sirupsen/logrus"
+	"log"
+	"math"
+	"os"
+	"path"
+	"runtime"
+	"runtime/pprof"
 )
 
 var packageName = "main"
@@ -34,10 +34,9 @@ var argMetadataIds = flag.String("metadata_id", string(-math.MaxInt64), "")
 var argWorkflowIds = flag.String("workflow_id", string(-math.MaxInt64), "")
 
 var applicationRole = flag.String("role", "", "")
-var masterNodeHost  = flag.String("masterHost", "localhost", "")
-var masterNodePort  = flag.String("masterPort", "9100", "")
-var nodeIdDirectory  = flag.String("nodeIdDir", "nodeId", "")
-
+var masterNodeHost = flag.String("masterHost", "localhost", "")
+var masterNodePort = flag.String("masterPort", "9100", "")
+var nodeIdDirectory = flag.String("nodeIdDir", "nodeId", "")
 
 func main() {
 	flag.Parse()
@@ -73,35 +72,33 @@ func main() {
 		log.Fatal(err)
 	}
 
-	config.Logger =  logrus.New()
+	config.Logger = logrus.New()
 
 	_, err = repository.InitRepository(hearth.AdaptRepositoryConfig(config))
 	if err != nil {
 		log.Fatal(err)
 	}
-	node,err := appnode.NewApplicationNode(
+	node, err := appnode.NewApplicationNode(
 		&appnode.ApplicationNodeConfigType{
-			Logger:config.Logger,
-			GrpcPort:9100,
-			RestPort:9200,
-			SlaveHeartBeatSeconds:10,
+			Logger:                config.Logger,
+			GrpcPort:              9100,
+			RestPort:              9200,
+			SlaveHeartBeatSeconds: 10,
 		},
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if applicationRole == nil || *applicationRole == "test" {
+	if *applicationRole == "" || *applicationRole == "test" {
 		test1()
 	} else if *applicationRole == "master" {
 		node.StartMasterNode()
 	} else if *applicationRole == "slave" {
-		node.StartSlaveNode(*masterNodeHost,*masterNodePort,*nodeIdDirectory)
+		node.StartSlaveNode(*masterNodeHost, *masterNodePort, *nodeIdDirectory)
 	} else {
-		log.Fatal("parameter role '%v' is not recognized")
+		log.Fatalf("parameter role '%v' is not recognized", *applicationRole)
 	}
-
-
 
 }
 
@@ -127,7 +124,7 @@ func test1() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if false {
+	if true {
 		indexer, err := index.NewIndexer(
 			&index.BitsetIndexConfigType{
 				DumperConfig: hearth.AdaptDataReaderConfig(config),
@@ -144,7 +141,8 @@ func test1() {
 		if err != nil {
 			log.Fatal(err)
 		}
-
+	}
+	if false {
 		splitter, err := categorysplit.NewCategorySplitter(&categorysplit.CategorySplitConfigType{
 			DumpReaderConfig:     hearth.AdaptDataReaderConfig(config),
 			PathToSliceDirectory: config.BitsetPath,
@@ -168,7 +166,7 @@ func test1() {
 	dumpConfig.GZip = false
 	sorter := sort.NewColumnSorter(&sort.ColumnSorterConfigType{
 		PathToSortedSliceDirectory: "./Sorted",
-		DumpReaderConfig:  dumpConfig,
+		DumpReaderConfig:           dumpConfig,
 	})
 
 	err = sorter.SortByColumn(ctx,
@@ -180,13 +178,13 @@ func test1() {
 		log.Fatal(err)
 	}
 
-	searcher,_ := search.NewColumnSearcher(
-	 &search.ColumnSearcherConfigType{
-		DumpReaderConfig:*dumpConfig,
-	})
-	
+	searcher, _ := search.NewColumnSearcher(
+		&search.ColumnSearcherConfigType{
+			DumpReaderConfig: *dumpConfig,
+		})
+
 	sortedFile := "C:/home/vlad/data.253.4/BINDATA/111/175692/175807/144764187.sorted"
-	s1,s2,s3:= searcher.Search(ctx,sortedFile,true,8,8,[][]byte{
+	s1, s2, s3 := searcher.Search(ctx, sortedFile, true, 8, 8, [][]byte{
 		[]byte("121185"),
 		[]byte("999-83-7009"),
 		[]byte("35183"),
@@ -205,6 +203,3 @@ func test1() {
 	fmt.Println(s2)
 	fmt.Println(s3)
 }
-
-
-

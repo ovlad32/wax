@@ -11,11 +11,6 @@ import (
 	"strings"
 	"path"
 	"github.com/ovlad32/wax/hearth/misc"
-	"strconv"
-	"unsafe"
-	"bufio"
-	"bytes"
-	"log"
 	"github.com/ovlad32/wax/hearth/handling/nullable"
 )
 
@@ -147,6 +142,10 @@ func (indexer *BitsetIndexerType) buildBitsets(
 		var fusionColunmList dto.FusionColumnListType
 		var splitColumnListData splitColumnListDataType
 
+		maxColumnPosition := targetTable.MaxColumnPosition()
+		var splitColumnsAdded = 0
+
+
 
 		for columnNumber, column := range targetTableColumns {
 
@@ -196,28 +195,57 @@ func (indexer *BitsetIndexerType) buildBitsets(
 			drop.Hash(bitsetContent.IsHashContent())
 		}
 		if fusionColunmList != nil {
-			fusionColumnGroupKey := fusionColunmList.String()
-			if mappedSplitColumns,mappedFound := splitColumnMap[fusionColumnGroupKey];!mappedFound {
-				var fusionColumnGroup *dto.FusionColumnGroupType
-				fusionColumnGroup , err := repository.FusionColumnGroupByTableAndKey(ctx,targetTable,fusionColumnGroupKey )
-				if err!= nil{
+			if splitColumnMap == nil {
+				splitColumnMap = make(map[string]map[int]dto.ColumnInfoListType)
+				groups, err := repository.FusionColumnGroupByTable(ctx,targetTable)
+				if err != nil {
 					//TODO:
 				}
-				if fusionColumnGroup  == nil {
-					fusionColumnGroup =&dto.FusionColumnGroupType{
+				if groups != nil && len(groups)>0 {
+					for _, fusionColumnGroup := range groups {
+						var splitColumns dto.ColumnInfoListType
+						splitColumns, err = repository.ColumnsByGroupId(ctx,fusionColumnGroup.Id.Value())
+						if err != nil {
+							//TODO:
+						}
+						if len(splitColumns) > 0 {
+							splitColumnsAdded = len(splitColumns)
+							columnIdMap := make(map[int64]dto.ColumnInfoListType)
+							for _ , splitColumn := range splitColumns {
+								if columnList,found := columnIdMap[splitColumn.SourceFusionColumnId.Value()]; !found {
+									columnList = make(dto.ColumnInfoListType,0,len(splitColumnListData))
+									columnList = append(columnList,splitColumn)
+									columnIdMap[splitColumn.SourceFusionColumnId.Value()] = columnList
+								} else {
+									columnList = append(columnList,splitColumn)
+									columnIdMap[splitColumn.SourceFusionColumnId.Value()] = columnList
+								}
+							}
+							splitColumnMap[fusionColumnGroup.GroupKey] = make(map[int]dto.ColumnInfoListType)
+							for columnIndex,tabColumn := range targetTable.ColumnList() {
+                            	if columnList,found := columnIdMap[tabColumn.Id.Value()]; found {
+									splitColumnMap[fusionColumnGroup.GroupKey][columnIndex] = columnList
+								}
+							}
+						}
+					}
+
+				}
+
+			}
+
+
+			fusionColumnGroupKey := fusionColunmList.String()
+			if mappedSplitColumns,mappedFound := splitColumnMap[fusionColumnGroupKey];!mappedFound {
+				fusionColumnGroup := &dto.FusionColumnGroupType{
 						TableInfoId:targetTable.Id,
 						GroupKey:fusionColumnGroupKey,
-					}
+						}
 					err = repository.PutFusionColumnGroup(ctx,fusionColumnGroup)
 					if err != nil {
 						//TODO:
 					}
-				} else {
-					//TODO: !!! continue here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-					// u need to populate the map
-				}
 
-				maxPosition :=  targetTable.MaxColumnPosition()
 
 
 				mappedSplitColumns = make(map[int]dto.ColumnInfoListType)
@@ -227,7 +255,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 						scd.splitColumnInfoList = make(dto.ColumnInfoListType, 0, fusionColunmList[fusionIndex].ColumnCount)
 					}
 					for splitColumnNumber := 0; splitColumnNumber < fusionColunmList[fusionIndex].ColumnCount; splitColumnNumber ++{
-						maxPosition ++
+						splitColumnsAdded ++
 
 						splitColumn := &dto.ColumnInfoType{
 							DataLength:           scd.sourceColumnInfo.DataLength,
@@ -247,7 +275,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 									splitColumnNumber, fusionColunmList[fusionIndex].ColumnCount,
 								),
 							),
-							Position: nullable.NewNullInt64(int64(maxPosition)),
+							Position: nullable.NewNullInt64(int64(maxColumnPosition + splitColumnsAdded)),
 						}
 						err = repository.PutColumnInfo(ctx, splitColumn)
 						if err != nil {
@@ -255,11 +283,12 @@ func (indexer *BitsetIndexerType) buildBitsets(
 						}
 						scd.splitColumnInfoList = append(scd.splitColumnInfoList, splitColumn)
 					}
-					targetTable.Columns = append(targetTable.Columns,scd.splitColumnInfoList...)
+					// TODO: Consider if needed
+					// targetTable.Columns = append(targetTable.Columns,scd.splitColumnInfoList...)
 
 					mappedSplitColumns[fusionColunmList[fusionIndex].SourceColumnPosition] = scd.splitColumnInfoList
 				}
-				splitColumnMap[key] = mappedSplitColumns
+				splitColumnMap[fusionColumnGroupKey] = mappedSplitColumns
 			} else {
 				for splitRowDataIndex, scd := range splitColumnListData {
 					found := false;

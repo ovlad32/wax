@@ -308,7 +308,7 @@ func fusionColumnGroup(
 	ctx context.Context,
 	where whereFunc,
 	args []interface{},
-) (result []*dto.FusionColumnGroupType, err error) {
+) (result dto.FusionColumnGroupListType, err error) {
 
 	tx, err := iDb.Conn(ctx)
 	if err != nil {
@@ -353,11 +353,10 @@ func fusionColumnGroup(
 	return
 }
 
-func FusionColumnGroupByTableAndKey(
+func FusionColumnGroupByTable(
 	ctx context.Context,
 	table *dto.TableInfoType,
-	groupKey string,
-) (result *dto.FusionColumnGroupType, err error) {
+) (result dto.FusionColumnGroupListType , err error) {
 	_ = ctx
 
 	defer func() {
@@ -375,20 +374,16 @@ func FusionColumnGroupByTableAndKey(
 		err = fmt.Errorf("table id is not initialized")
 		return
 	}
-	if groupKey == "" {
-		err = fmt.Errorf("Fusion Group Key is not initialized")
-		return
-	}
-	return fusionColumnGroupByTableIdAndKey(ctx, table.Id.Value(), groupKey)
+
+	return fusionColumnGroupByTableId(ctx, table.Id.Value())
 
 }
 
-func FusionColumnGroupByTableIdAndKey(
+func FusionColumnGroupByTableId(
 	ctx context.Context,
 	Id int64,
-	groupKey string,
-) (result *dto.FusionColumnGroupType, err error) {
-	result, err = fusionColumnGroupByTableIdAndKey(ctx, Id, groupKey)
+) (result dto.FusionColumnGroupListType, err error) {
+	result, err = fusionColumnGroupByTableId(ctx, Id)
 	if err != nil {
 		err = fmt.Errorf("could not read Fusion Column Group :%v", err)
 		result = nil
@@ -396,35 +391,51 @@ func FusionColumnGroupByTableIdAndKey(
 	return
 }
 
-func fusionColumnGroupByTableIdAndKey(
+func fusionColumnGroupByTableId(
 	ctx context.Context,
 	Id int64,
-	groupKey string,
-) (result *dto.FusionColumnGroupType, err error) {
+) (result dto.FusionColumnGroupListType, err error) {
 	where := MakeWhereFunc()
 	args := MakeWhereArgs()
-	whereString := " WHERE TABLE_INFO_ID = %v and GROUP_KEY = %v"
+	whereString := " WHERE TABLE_INFO_ID = %v"
 	switch currentDbType {
 	case H2:
 		where = func() string {
-			return fmt.Sprintf(whereString, Id, groupKey)
+			return fmt.Sprintf(whereString, Id)
 		}
 	default:
 		where = func() string {
 			return strings.Replace(whereString, "%v", "?", -1)
 		}
-		args = append(args, Id, groupKey)
+		args = append(args, Id)
 	}
 
-	res, err := fusionColumnGroup(ctx, where, args)
-
-	if err == nil && len(res) > 0 {
-		result = res[0]
-	}
+	result, err = fusionColumnGroup(ctx, where, args)
 	return
 }
 
 
+func ColumnsByGroupId(ctx context.Context, groupId int64) (result dto.ColumnInfoListType, err error) {
+
+	where := MakeWhereFunc()
+	args := MakeWhereArgs()
+	whereString := " WHERE FUSION_COLUMN_GROUP_ID = %v"
+	switch currentDbType {
+	case H2:
+		where = func() string {
+			return fmt.Sprintf(whereString, groupId)
+		}
+	default:
+		where = func() string {
+			return strings.Replace(whereString, "%v", "?", -1)
+		}
+		args = append(args, groupId)
+	}
+
+	result, err = columnInfo(ctx, where, args)
+	return
+
+}
 
 func PutFusionColumnGroup(ctx context.Context, entity *dto.FusionColumnGroupType) (err error) {
 	var newOne bool

@@ -15,6 +15,8 @@ type FusionColumnGroupType struct {
 	GroupKey string
 }
 
+type FusionColumnGroupListType []*FusionColumnGroupType;
+
 
 
 type FusionColumnType struct {

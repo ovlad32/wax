@@ -196,15 +196,29 @@ func (indexer *BitsetIndexerType) buildBitsets(
 			drop.Hash(bitsetContent.IsHashContent())
 		}
 		if fusionColunmList != nil {
-			key := fusionColunmList.String()
-
-			if mappedSplitColumns,mappedFound := splitColumnMap[key];!mappedFound {
-				maxPosition :=  targetTable.MaxColumnPosition()
-
-				err = repository.PutFusionColumnGroup
-				if err != nil {
+			fusionColumnGroupKey := fusionColunmList.String()
+			if mappedSplitColumns,mappedFound := splitColumnMap[fusionColumnGroupKey];!mappedFound {
+				var fusionColumnGroup *dto.FusionColumnGroupType
+				fusionColumnGroup , err := repository.FusionColumnGroupByTableAndKey(ctx,targetTable,fusionColumnGroupKey )
+				if err!= nil{
 					//TODO:
 				}
+				if fusionColumnGroup  == nil {
+					fusionColumnGroup =&dto.FusionColumnGroupType{
+						TableInfoId:targetTable.Id,
+						GroupKey:fusionColumnGroupKey,
+					}
+					err = repository.PutFusionColumnGroup(ctx,fusionColumnGroup)
+					if err != nil {
+						//TODO:
+					}
+				} else {
+					//TODO: !!! continue here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+					// u need to populate the map
+				}
+
+				maxPosition :=  targetTable.MaxColumnPosition()
+
 
 				mappedSplitColumns = make(map[int]dto.ColumnInfoListType)
 				//splitColumnInfoList := make(dto.ColumnInfoListType,0,len(fusionSplitRowData))
@@ -223,7 +237,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 							TableInfoId:          scd.sourceColumnInfo.TableInfoId,
 							TableInfo:            scd.sourceColumnInfo.TableInfo,
 							SourceFusionColumnId: scd.sourceColumnInfo.Id,
-							FusionColumnGroupId:  0, //TODO:!!! ID!
+							FusionColumnGroupId:  fusionColumnGroup.Id,
 							PositionInFusion:     nullable.NewNullInt64(int64(splitColumnNumber)),
 							TotalInFusion:        nullable.NewNullInt64(int64(fusionColunmList[fusionIndex].ColumnCount)),
 							ColumnName: nullable.NewNullString(

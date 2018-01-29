@@ -11,8 +11,8 @@ import (
 
 type FusionColumnGroupType struct {
 	Id nullable.NullInt64
-	ColumnInfoId nullable.NullInt64
-	GroupTuples string
+	TableInfoId nullable.NullInt64
+	GroupKey string
 }
 
 

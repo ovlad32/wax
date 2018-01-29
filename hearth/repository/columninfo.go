@@ -134,6 +134,8 @@ func ColumnInfoByTable(ctx context.Context, tableInfo *dto.TableInfoType) (resul
 }
 
 func ColumnInfoById(ctx context.Context, Id int) (result *dto.ColumnInfoType, err error) {
+	_ = ctx
+
 	where := MakeWhereFunc()
 	args := MakeWhereArgs()
 	whereString := " WHERE ID = %v"
@@ -166,6 +168,7 @@ func ColumnInfoSeqId() (id int64, err error) {
 }
 
 func PutColumnInfo(ctx context.Context, columnInfo *dto.ColumnInfoType) (err error) {
+	_ = ctx
 	var newOne bool
 
 	if newOne {
@@ -301,9 +304,11 @@ func PutColumnInfo(ctx context.Context, columnInfo *dto.ColumnInfoType) (err err
 	return
 }
 
-
-
-func fusionColumnGroup(ctx context.Context, where whereFunc, args []interface{}) (result []*dto.FusionColumnGroupType, err error) {
+func fusionColumnGroup(
+	ctx context.Context,
+	where whereFunc,
+	args []interface{},
+) (result []*dto.FusionColumnGroupType, err error) {
 
 	tx, err := iDb.Conn(ctx)
 	if err != nil {
@@ -314,8 +319,8 @@ func fusionColumnGroup(ctx context.Context, where whereFunc, args []interface{})
 
 	query := "SELECT " +
 		" ID" +
-		" ,COLUMN_INFO_ID" +
-		" ,GROUP_TUPLES" +
+		" ,TABLE_INFO_ID" +
+		" ,GROUP_KEY" +
 		" FROM FUSION_COLUMN_GROUP"
 
 	if where != nil {
@@ -336,8 +341,8 @@ func fusionColumnGroup(ctx context.Context, where whereFunc, args []interface{})
 			var row dto.FusionColumnGroupType
 			err = rws.Scan(
 				&row.Id,
-				&row.ColumnInfoId,
-				&row.GroupTuples,
+				&row.TableInfoId,
+				&row.GroupKey,
 			)
 			if err != nil {
 				return
@@ -348,7 +353,12 @@ func fusionColumnGroup(ctx context.Context, where whereFunc, args []interface{})
 	return
 }
 
-func FusionColumnGroupByColumn(ctx context.Context, column *dto.ColumnInfoType) (result *dto.FusionColumnGroupType, err error) {
+func FusionColumnGroupByTableAndKey(
+	ctx context.Context,
+	table *dto.TableInfoType,
+	groupKey string,
+) (result *dto.FusionColumnGroupType, err error) {
+	_ = ctx
 
 	defer func() {
 		if err != nil {
@@ -357,19 +367,28 @@ func FusionColumnGroupByColumn(ctx context.Context, column *dto.ColumnInfoType) 
 		}
 	}()
 
-	if column == nil {
-		err = fmt.Errorf("column is null")
+	if table == nil {
+		err = fmt.Errorf("table is null")
 		return
 	}
-	if !column.Id.Valid() {
-		err = fmt.Errorf("column id is not initialized")
+	if !table.Id.Valid() {
+		err = fmt.Errorf("table id is not initialized")
 		return
 	}
-	return fusionColumnGroupByColumnId(ctx, column.Id.Value())
+	if groupKey == "" {
+		err = fmt.Errorf("Fusion Group Key is not initialized")
+		return
+	}
+	return fusionColumnGroupByTableIdAndKey(ctx, table.Id.Value(), groupKey)
 
 }
-func FusionColumnGroupByColumnId(ctx context.Context, Id int64) (result *dto.FusionColumnGroupType, err error) {
-	result, err = fusionColumnGroupByColumnId(ctx, Id)
+
+func FusionColumnGroupByTableIdAndKey(
+	ctx context.Context,
+	Id int64,
+	groupKey string,
+) (result *dto.FusionColumnGroupType, err error) {
+	result, err = fusionColumnGroupByTableIdAndKey(ctx, Id, groupKey)
 	if err != nil {
 		err = fmt.Errorf("could not read Fusion Column Group :%v", err)
 		result = nil
@@ -377,26 +396,75 @@ func FusionColumnGroupByColumnId(ctx context.Context, Id int64) (result *dto.Fus
 	return
 }
 
-func fusionColumnGroupByColumnId(ctx context.Context, Id int64) (result *dto.FusionColumnGroupType, err error) {
+func fusionColumnGroupByTableIdAndKey(
+	ctx context.Context,
+	Id int64,
+	groupKey string,
+) (result *dto.FusionColumnGroupType, err error) {
 	where := MakeWhereFunc()
 	args := MakeWhereArgs()
-	whereString := " WHERE ID = %v"
+	whereString := " WHERE TABLE_INFO_ID = %v and GROUP_KEY = %v"
 	switch currentDbType {
 	case H2:
 		where = func() string {
-			return fmt.Sprintf(whereString, Id)
+			return fmt.Sprintf(whereString, Id, groupKey)
 		}
 	default:
 		where = func() string {
-			return fmt.Sprintf(whereString, "")
+			return strings.Replace(whereString, "%v", "?", -1)
 		}
-		args = append(args, Id)
+		args = append(args, Id, groupKey)
 	}
 
 	res, err := fusionColumnGroup(ctx, where, args)
 
 	if err == nil && len(res) > 0 {
 		result = res[0]
+	}
+	return
+}
+
+
+
+func PutFusionColumnGroup(ctx context.Context, entity *dto.FusionColumnGroupType) (err error) {
+	var newOne bool
+
+	if !entity.Id.Valid() {
+		var id int64;
+		id, err = ColumnInfoSeqId()
+		if err != nil {
+			return
+		}
+		entity.Id = nullable.NewNullInt64(id)
+		newOne = true
+	}
+	if newOne {
+		dml :=
+			`insert into fusion_column_group (
+              id, table_info_id, group_key
+			 ) values ( %v,%v,'%v)`
+		switch currentDbType {
+		case H2:
+			dml = fmt.Sprintf(dml,
+				entity.Id,
+				entity.TableInfoId,
+				"'"+entity.GroupKey+"'",
+			)
+
+			_, err = iDb.Exec(dml)
+		default:
+			dml = strings.Replace(dml, "%v", "?", -1)
+			_, err = iDb.Exec(dml,
+				entity.Id,
+				entity.TableInfoId,
+				entity.GroupKey,
+			)
+		}
+		if err != nil {
+			entity.Id = nullable.NullInt64{}
+			err = fmt.Errorf("could not put FusionColumnGroup new entity: %v", err)
+			return err
+		}
 	}
 	return
 }

@@ -16,12 +16,12 @@ import (
 	"github.com/ovlad32/wax/hearth/process/sort"
 	"github.com/ovlad32/wax/hearth/repository"
 	"github.com/sirupsen/logrus"
-	"log"
 	"math"
 	"os"
-	"path"
 	"runtime"
+	stdlog "log"
 	"runtime/pprof"
+	"path"
 )
 
 var packageName = "main"
@@ -42,14 +42,13 @@ func main() {
 	flag.Parse()
 	tracelog.Start(tracelog.LevelInfo)
 	defer tracelog.Stop()
-
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			log.Fatal("could not create CPU profile: ", err)
+			stdlog.Fatal("could not create CPU profile: ", err)
 		}
 		if err := pprof.StartCPUProfile(f); err != nil {
-			log.Fatal("could not start CPU profile: ", err)
+			stdlog.Fatal("could not start CPU profile: ", err)
 		}
 		defer pprof.StopCPUProfile()
 	}
@@ -57,11 +56,11 @@ func main() {
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)
 		if err != nil {
-			log.Fatal("could not create memory profile: ", err)
+			stdlog.Fatal("could not create memory profile: ", err)
 		}
 		runtime.GC() // get up-to-date statistics
 		if err := pprof.WriteHeapProfile(f); err != nil {
-			log.Fatal("could not write memory profile: ", err)
+			stdlog.Fatal("could not write memory profile: ", err)
 		}
 		defer f.Close()
 	}
@@ -69,15 +68,16 @@ func main() {
 
 	config, err := handling.ReadConfig()
 	if err != nil {
-		log.Fatal(err)
+		stdlog.Fatal(err)
 	}
 
 	config.Logger = logrus.New()
 
 	_, err = repository.InitRepository(hearth.AdaptRepositoryConfig(config))
 	if err != nil {
-		log.Fatal(err)
+		stdlog.Fatal(err)
 	}
+
 	node, err := appnode.NewApplicationNode(
 		&appnode.ApplicationNodeConfigType{
 			Logger:                config.Logger,
@@ -87,7 +87,7 @@ func main() {
 		},
 	)
 	if err != nil {
-		log.Fatal(err)
+		stdlog.Fatal(err)
 	}
 
 	if *applicationRole == "" || *applicationRole == "test" {
@@ -97,39 +97,41 @@ func main() {
 	} else if *applicationRole == "slave" {
 		node.StartSlaveNode(*masterNodeHost, *masterNodePort, *nodeIdDirectory)
 	} else {
-		log.Fatalf("parameter role '%v' is not recognized", *applicationRole)
+		stdlog.Fatalf("parameter role '%v' is not recognized", *applicationRole)
 	}
 
 }
 
 func test1() {
-
 	config, err := handling.ReadConfig()
 	if err != nil {
-		log.Fatal(err)
+		stdlog.Fatal(err)
 	}
 	fmt.Println(config)
 
 	_, err = repository.InitRepository(hearth.AdaptRepositoryConfig(config))
 	if err != nil {
-		log.Fatal(err)
+		stdlog.Fatal(err)
 	}
 
 	if err != nil {
-		log.Fatal(err)
+		stdlog.Fatal(err)
 	}
 
 	ctx := context.Background()
 	table, err := repository.TableInfoById(ctx, 2) //100:111
 	if err != nil {
-		log.Fatal(err)
+		stdlog.Fatal(err)
 	}
 	if true {
+		l := logrus.New()
+		l = logrus.StandardLogger()
+		_ = l
 		indexer, err := index.NewIndexer(
 			&index.BitsetIndexConfigType{
 				DumperConfig: hearth.AdaptDataReaderConfig(config),
 				BitsetPath:   config.BitsetPath,
-				Log: logrus.New(),
+				Log: l,
 			},
 		)
 		err = indexer.BuildBitsets(
@@ -140,7 +142,7 @@ func test1() {
 		)
 
 		if err != nil {
-			log.Fatal(err)
+			stdlog.Fatal(err)
 		}
 	}
 	if false {
@@ -152,7 +154,7 @@ func test1() {
 		})
 		if err != nil {
 			err = fmt.Errorf("could not do category split for table %v: %v", table, err)
-			log.Fatal(err)
+			stdlog.Fatal(err)
 		}
 		err = splitter.SplitFile(
 			ctx,
@@ -160,7 +162,7 @@ func test1() {
 			dto.ColumnInfoListType{table.Columns[7]}, //7:2
 		)
 		if err != nil {
-			log.Fatal(err)
+			stdlog.Fatal(err)
 		}
 	}
 	if false {
@@ -177,7 +179,7 @@ func test1() {
 			misc.PositionFlagsAs(misc.PositionOn, len(table.ColumnList()), []int{8}...),
 		)
 		if err != nil {
-			log.Fatal(err)
+			stdlog.Fatal(err)
 		}
 
 		searcher, _ := search.NewColumnSearcher(

@@ -36,9 +36,9 @@ func PutColumnInfo(ctx context.Context, columnInfo *dto.ColumnInfoType) (err err
 	}
 	data := varray{
 		columnInfo.Id,
-		columnInfo.ColumnName.SQLString(),
-		columnInfo.DataType.SQLString(),
-		columnInfo.RealDataType.SQLString(),
+		columnInfo.ColumnName,
+		columnInfo.DataType,
+		columnInfo.RealDataType,
 		columnInfo.DataLength,
 		columnInfo.DataPrecision,
 		columnInfo.DataScale,
@@ -52,8 +52,8 @@ func PutColumnInfo(ctx context.Context, columnInfo *dto.ColumnInfoType) (err err
 		columnInfo.NumericCount,
 		columnInfo.MinNumericValue,
 		columnInfo.MaxNumericValue,
-		columnInfo.MinStringValue.SQLString(),
-		columnInfo.MaxStringValue.SQLString(),
+		columnInfo.MinStringValue,
+		columnInfo.MaxStringValue,
 		columnInfo.IntegerCount,
 		columnInfo.IntegerUniqueCount,
 		columnInfo.MovingMean,

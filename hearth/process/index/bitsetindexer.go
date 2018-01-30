@@ -8,10 +8,10 @@ import (
 	"github.com/ovlad32/wax/hearth/misc"
 	dump "github.com/ovlad32/wax/hearth/process/dump"
 	"github.com/ovlad32/wax/hearth/repository"
-	"github.com/sirupsen/logrus"
 	"path"
 	"strings"
 	"time"
+	"github.com/sirupsen/logrus"
 )
 
 type BitsetIndexConfigType struct {
@@ -93,14 +93,18 @@ func (indexer *BitsetIndexerType) buildBitsets(
 		splitDataBytes      [][]byte
 		splitColumnInfoList dto.ColumnInfoListType
 	}
+
+	type splitColumnListDataType []*splitColumnDataType
+
 	type mappedSplitColumnType map[int]dto.ColumnInfoListType
 	type mappedColumnGroupsType map[string]mappedSplitColumnType
 
-	type splitColumnListDataType []*splitColumnDataType
 	var mappedColumnGroups mappedColumnGroupsType
 
-	var prevFusionColumnGroupKey string
 	var prevMappedSplitColumns mappedSplitColumnType
+	var prevFusionColumnGroupKey string
+
+	var splitColumnsAdded = 0
 
 
 	//type fusionDataListType []*fusionDataType;
@@ -128,12 +132,12 @@ func (indexer *BitsetIndexerType) buildBitsets(
 	) (err error) {
 
 		if len(rowFields) != targetTableColumnCount {
-			err = fmt.Errorf("Column count mismach given: %v, expected %v", len(rowFields), targetTableColumnCount)
+			err = fmt.Errorf("column count mismach given: %v, expected %v", len(rowFields), targetTableColumnCount)
 			return
 		}
 		if log != nil {
 			if time.Since(started).Minutes() >= 1 {
-				log.Infof("Processing speed %.0f lps", float64(lineNumber-lineStarted)/60.0)
+				log.Printf("Processing speed %.0f lps", float64(lineNumber-lineStarted)/60.0)
 				lineStarted = lineNumber
 				started = time.Now()
 			}
@@ -142,7 +146,6 @@ func (indexer *BitsetIndexerType) buildBitsets(
 		var splitColumnListData splitColumnListDataType
 
 		maxColumnPosition := targetTable.MaxColumnPosition()
-		var splitColumnsAdded = 0
 
 		for columnNumber, column := range targetTableColumns {
 
@@ -339,7 +342,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 	}
 
 	if log != nil {
-		log.Infof("Start processing file %v ", pathToFile)
+		log.Printf("Building bitset indexes of file %v ... ", pathToFile)
 	}
 
 	linesRead, err := dumper.ReadFromFile(
@@ -350,15 +353,33 @@ func (indexer *BitsetIndexerType) buildBitsets(
 
 	if err != nil {
 		err = fmt.Errorf("could not process dump file %v:\n%v", pathToFile, err)
-		log.Error(err)
+		log.Print(err)
 		return
-	} else {
-		if log != nil {
-			log.Infof("File %v of %v lines have been processed", pathToFile, linesRead)
-		}
+	}
+	if log != nil {
+		log.Printf("File %v of %v lines have been processed. Persisting bitset indexes...", pathToFile, linesRead)
 	}
 
-	for _, column := range targetTable.Columns {
+
+	var allColumns *dto.ColumnInfoListType
+ 	if mappedColumnGroups == nil  {
+		allColumns = &processingColumns
+	} else {
+		// making new list
+		columns := make(dto.ColumnInfoListType,0,len(processingColumns)+splitColumnsAdded)
+		columns = append(columns,processingColumns...)
+		for _,mapped := range mappedColumnGroups {
+			for _,addedColumns := range mapped {
+				columns = append(columns,addedColumns...)
+			}
+		}
+		allColumns = &columns
+	}
+
+
+
+
+	for _, column := range *allColumns {
 		for _, feature := range column.ContentFeatures {
 			err = feature.UpdateStatistics(ctx)
 			if err != nil {
@@ -386,9 +407,17 @@ func (indexer *BitsetIndexerType) buildBitsets(
 					return err
 				}
 			}
+			err = repository.PutContentFeature(ctx, feature)
+			if err != nil {
+				err = fmt.Errorf("could not persist statistics for dump %v: %v", pathToFile, err)
+				return err
+			}
 		}
 	}
-	return err
+	if log != nil {
+		log.Printf("Bitset indexes for file %v have been persisted to disk", pathToFile)
+	}
+	return
 }
 
 func (indexer BitsetIndexerType) BuildBitsets(ctx context.Context,
@@ -404,15 +433,5 @@ func (indexer BitsetIndexerType) BuildBitsets(ctx context.Context,
 		targetTable,
 	)
 
-	for _, column := range targetTable.ColumnList() {
-		for _, feature := range column.ContentFeatures {
-			err = repository.PutContentFeature(ctx, feature)
-			if err != nil {
-				err := fmt.Errorf("could not persist statistics for %v: %v", targetTable, err)
-				return err
-			}
-		}
-	}
-
-	return err
+	return
 }

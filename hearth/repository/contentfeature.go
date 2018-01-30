@@ -26,7 +26,7 @@ func PutContentFeature(ctx context.Context, feature *dto.ContentFeatureType) (er
 		feature.MovingStandardDeviation,
 		}
 
-	ExecContext(ctx,
+	_,err = ExecContext(ctx,
 		`merge into column_feature_stats(
 				 column_info_id 
 				, key 
@@ -45,6 +45,7 @@ func PutContentFeature(ctx context.Context, feature *dto.ContentFeatureType) (er
 				, moving_stddev 
 			 ) 
              key (column_info_id, key) `+data.valuePlaceholders(),
+             	data...
 		)
 
 	if err != nil {

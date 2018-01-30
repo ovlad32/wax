@@ -126,8 +126,8 @@ func convert2H2(statement string, args []interface{}) (string, []interface{}) {
 			if !rValue.Valid() {
 				args[index] = NullString
 			} else{
-				//args[index] = maskQuotes(rValue.InternalValue.String)
-				args[index] = rValue.InternalValue.String
+				args[index] = maskQuotes(rValue.InternalValue.String)
+				//args[index] = rValue.InternalValue.String
 			}
 		default:
 			args[index] = iValue

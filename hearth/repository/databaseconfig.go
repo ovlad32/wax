@@ -8,8 +8,7 @@ import (
 
 
 
-func databaseConfig(ctx context.Context, where  whereFuncType) (result []*dto.DatabaseConfigType, err error) {
-	var args varray
+func databaseConfig(ctx context.Context, where  string, args... interface{}) (result []*dto.DatabaseConfigType, err error) {
 	result = make([]*dto.DatabaseConfigType, 0)
 
 	query := "SELECT " +
@@ -25,10 +24,8 @@ func databaseConfig(ctx context.Context, where  whereFuncType) (result []*dto.Da
 		" ,PASSWORD " +
 		" FROM DATABASE_CONFIG "
 
-	if where != nil {
-		var whereClause string
-		whereClause, args = where()
-		query = query + whereClause
+	if where != "" {
+		query = query + where
 	}
 	query = query + " ORDER BY NAME"
 
@@ -69,14 +66,14 @@ func databaseConfig(ctx context.Context, where  whereFuncType) (result []*dto.Da
 }
 
 func DatabaseConfigAll(ctx context.Context) (result []*dto.DatabaseConfigType, err error) {
-	return databaseConfig(ctx, nil)
+	return databaseConfig(ctx, "")
 }
 
 func DatabaseConfigById(Id int) (ctx context.Context, result *dto.DatabaseConfigType, err error) {
 	res, err := databaseConfig(ctx,
-		func()(string,varray) {
-			return " WHERE ID=?",varray{Id}
-		},)
+	" WHERE ID = ?",
+		Id,
+		)
 
 	if err == nil && len(res) > 0 {
 		result = res[0]

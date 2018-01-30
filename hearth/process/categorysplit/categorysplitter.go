@@ -219,7 +219,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 
 	tableColumns := targetTable.ColumnList()
 
-	for position,column := range (splitColumns) {
+	for position,column := range splitColumns {
 		splitColumn := &dto.CategorySplitColumnType{
 			Column:        column,
 			Position:      position,

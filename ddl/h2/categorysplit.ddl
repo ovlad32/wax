@@ -1,4 +1,4 @@
-create sequence if not exists SPLIT_COLUMN_DATA_SEQ
+create sequence if not exists SPLIT_COLUMN_DATA_SEQ;
 
 drop table if exists category_split;
 create table if not exists category_split(
@@ -47,7 +47,6 @@ create table if not exists category_split_file(
 );
 
 
-select * from CATEGORY_SPLIT_COLUMN
 
 
 
@@ -63,7 +62,8 @@ create table if not exists app_node (
  state varchar(50),
  role  varchar(50),
  constraint app_node_pk primary key (id)
-)
+);
+
 
 drop table if exists fusion_column_group;
 create table if not exists fusion_column_group (
@@ -101,24 +101,24 @@ create table if not exists column_feature_stats (
  column_info_id bigint,
  separator char(1),
  CONSTRAINT fusion_column_config_pk PRIMARY  KEY (column_info_id)
-)
+);
 
 drop table if exists column_feature_stats;
 create table if not exists column_feature_stats(
 		 column_info_id bigint not null
-		, key varchar(30)  
-		, byte_length int null  
-		, is_numeric bool  null  
-		, is_negative bool  null  
+		, key varchar(30)
+		, byte_length int null
+		, is_numeric bool  null
+		, is_negative bool  null
 		, is_integer bool null
 		, total_count bigint
-		, hash_unique_count bigint 
+		, hash_unique_count bigint
 		, item_unique_count bigint
 		, min_sval varchar(4000)
-		, max_sval varchar(4000) 
-		, min_fval float 
+		, max_sval varchar(4000)
+		, min_fval float
 		, max_fval float
 		, moving_mean float
 		, moving_stddev float
 		, constraint column_feature_stats_pk  primary key(column_info_id, key)
-)
+);

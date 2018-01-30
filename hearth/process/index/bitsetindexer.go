@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/ovlad32/wax/hearth/dto"
-	"github.com/ovlad32/wax/hearth/handling"
 	"github.com/ovlad32/wax/hearth/handling/nullable"
 	"github.com/ovlad32/wax/hearth/misc"
 	dump "github.com/ovlad32/wax/hearth/process/dump"
 	"github.com/ovlad32/wax/hearth/repository"
+	"github.com/sirupsen/logrus"
 	"path"
 	"strings"
 	"time"
@@ -17,7 +17,7 @@ import (
 type BitsetIndexConfigType struct {
 	DumperConfig *dump.DumperConfigType
 	BitsetPath   string
-	Log          handling.Logger
+	Log          *logrus.Logger
 }
 
 func validateBitsetConfig(cfg *BitsetIndexConfigType) (err error) {
@@ -48,7 +48,6 @@ func (indexer *BitsetIndexerType) buildBitsets(
 	bitsetContent dto.BitsetContentArrayType,
 	processingColumnListInterface dto.ColumnListInterface,
 ) (err error) {
-	funcName := "buildBitsets"
 	log := indexer.config.Log
 	err = validateBitsetConfig(&indexer.config)
 	if err != nil {
@@ -80,7 +79,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 	targetTableColumns := targetTable.ColumnList()
 	targetTableColumnCount := len(targetTableColumns)
 
-	offPostitions, err := processingColumns.ColumnPositionFlagsAs(misc.PositionOff)
+	offPositions, err := processingColumns.ColumnPositionFlagsAs(misc.PositionOff)
 
 	dumperConfig := indexer.config.DumperConfig
 
@@ -94,9 +93,15 @@ func (indexer *BitsetIndexerType) buildBitsets(
 		splitDataBytes      [][]byte
 		splitColumnInfoList dto.ColumnInfoListType
 	}
+	type mappedSplitColumnType map[int]dto.ColumnInfoListType
+	type mappedColumnGroupsType map[string]mappedSplitColumnType
 
 	type splitColumnListDataType []*splitColumnDataType
-	var splitColumnMap map[string]map[int]dto.ColumnInfoListType
+	var mappedColumnGroups mappedColumnGroupsType
+
+	var prevFusionColumnGroupKey string
+	var prevMappedSplitColumns mappedSplitColumnType
+
 
 	//type fusionDataListType []*fusionDataType;
 
@@ -128,12 +133,12 @@ func (indexer *BitsetIndexerType) buildBitsets(
 		}
 		if log != nil {
 			if time.Since(started).Minutes() >= 1 {
-				log.Info(packageName, funcName, "Processing speed %.0f lps", float64(lineNumber-lineStarted)/60.0)
+				log.Infof("Processing speed %.0f lps", float64(lineNumber-lineStarted)/60.0)
 				lineStarted = lineNumber
 				started = time.Now()
 			}
 		}
-		var fusionColunmList dto.FusionColumnListType
+		var fusionColumnList dto.FusionColumnListType
 		var splitColumnListData splitColumnListDataType
 
 		maxColumnPosition := targetTable.MaxColumnPosition()
@@ -141,53 +146,59 @@ func (indexer *BitsetIndexerType) buildBitsets(
 
 		for columnNumber, column := range targetTableColumns {
 
-			if offPostitions[columnNumber] || len(rowFields[columnNumber]) == 0 {
+			if offPositions[columnNumber] || len(rowFields[columnNumber]) == 0 {
 				continue
 			}
+			var SplitData [][]byte
+
 			if column.FusionSeparator.Valid() && column.FusionSeparator.Value() != "" {
 				fusionColumnSeparator := byte(column.FusionSeparator.Value()[0:1][0])
-				SplitData := misc.SplitDumpLine(rowFields[columnNumber], fusionColumnSeparator)
-				if len(SplitData) > 1 {
-					if fusionColunmList == nil {
-						fusionColunmList = make(dto.FusionColumnListType, 0, len(targetTableColumns))
-						splitColumnListData = make(splitColumnListDataType, 0, len(targetTableColumns))
+				SplitData = misc.SplitDumpLine(rowFields[columnNumber], fusionColumnSeparator)
+			}
 
-					}
-
-					fusionColunmList = append(
-						fusionColunmList,
-						&dto.FusionColumnType{
-							SourceColumnPosition: columnNumber,
-							ColumnCount:          len(SplitData),
-						},
-					)
-
-					splitColumnListData = append(
-						splitColumnListData,
-						&splitColumnDataType{
-							splitDataBytes:   SplitData,
-							sourceColumnInfo: column,
-						},
-					)
-
+			if len(SplitData) < 2 {
+				drop := dto.NewSyrupDrop(column, rowFields[columnNumber])
+				if drop == nil {
 					continue
 				}
-			}
 
-			drop := dto.NewSyrupDrop(column, rowFields[columnNumber])
-			if drop == nil {
+				drop.LineNumber = lineNumber
+
+				drop.DiscoverContentFeature(bitsetContent.IsPureContent())
+
+				drop.Hash(bitsetContent.IsHashContent())
+
+
+			} else {
+				if fusionColumnList == nil {
+					fusionColumnList = make(dto.FusionColumnListType, 0, len(targetTableColumns))
+					splitColumnListData = make(splitColumnListDataType, 0, len(targetTableColumns))
+				}
+
+				fusionColumnList = append(
+					fusionColumnList,
+					&dto.FusionColumnType{
+						SourceColumnPosition: columnNumber,
+						ColumnCount:          len(SplitData),
+					},
+				)
+
+				splitColumnListData = append(
+					splitColumnListData,
+					&splitColumnDataType{
+						splitDataBytes:   SplitData,
+						sourceColumnInfo: column,
+					},
+				)
+
 				continue
 			}
-
-			drop.LineNumber = lineNumber
-
-			drop.DiscoverContentFeature(bitsetContent.IsPureContent())
-
-			drop.Hash(bitsetContent.IsHashContent())
 		}
-		if fusionColunmList != nil {
-			if splitColumnMap == nil {
-				splitColumnMap = make(map[string]map[int]dto.ColumnInfoListType)
+		if fusionColumnList != nil {
+			var mappedSplitColumns mappedSplitColumnType
+			var mappedFound bool = false
+			if mappedColumnGroups == nil {
+				mappedColumnGroups = make(mappedColumnGroupsType)
 				groups, err := repository.FusionColumnGroupByTable(ctx, targetTable)
 				if err != nil {
 					//TODO:
@@ -212,10 +223,10 @@ func (indexer *BitsetIndexerType) buildBitsets(
 									columnIdMap[splitColumn.SourceFusionColumnInfoId.Value()] = columnList
 								}
 							}
-							splitColumnMap[fusionColumnGroup.GroupKey] = make(map[int]dto.ColumnInfoListType)
+							mappedColumnGroups[fusionColumnGroup.GroupKey] = make(map[int]dto.ColumnInfoListType)
 							for columnIndex, tabColumn := range targetTable.ColumnList() {
 								if columnList, found := columnIdMap[tabColumn.Id.Value()]; found {
-									splitColumnMap[fusionColumnGroup.GroupKey][columnIndex] = columnList
+									mappedColumnGroups[fusionColumnGroup.GroupKey][columnIndex] = columnList
 								}
 							}
 						}
@@ -225,8 +236,16 @@ func (indexer *BitsetIndexerType) buildBitsets(
 
 			}
 
-			fusionColumnGroupKey := fusionColunmList.String()
-			if mappedSplitColumns, mappedFound := splitColumnMap[fusionColumnGroupKey]; !mappedFound {
+			fusionColumnGroupKey := fusionColumnList.String()
+
+			if prevFusionColumnGroupKey == fusionColumnGroupKey {
+				mappedSplitColumns = prevMappedSplitColumns
+				mappedFound = true
+			} else {
+				mappedSplitColumns, mappedFound = mappedColumnGroups[fusionColumnGroupKey]
+			}
+
+			if !mappedFound {
 				fusionColumnGroup := &dto.FusionColumnGroupType{
 					TableInfoId: targetTable.Id,
 					GroupKey:    fusionColumnGroupKey,
@@ -240,9 +259,9 @@ func (indexer *BitsetIndexerType) buildBitsets(
 				//splitColumnInfoList := make(dto.ColumnInfoListType,0,len(fusionSplitRowData))
 				for fusionIndex, scd := range splitColumnListData {
 					if scd.splitColumnInfoList == nil {
-						scd.splitColumnInfoList = make(dto.ColumnInfoListType, 0, fusionColunmList[fusionIndex].ColumnCount)
+						scd.splitColumnInfoList = make(dto.ColumnInfoListType, 0, fusionColumnList[fusionIndex].ColumnCount)
 					}
-					for splitColumnNumber := 0; splitColumnNumber < fusionColunmList[fusionIndex].ColumnCount; splitColumnNumber++ {
+					for splitColumnNumber := 0; splitColumnNumber < fusionColumnList[fusionIndex].ColumnCount; splitColumnNumber++ {
 						splitColumnsAdded++
 
 						splitColumn := &dto.ColumnInfoType{
@@ -255,12 +274,12 @@ func (indexer *BitsetIndexerType) buildBitsets(
 							SourceFusionColumnInfoId: scd.sourceColumnInfo.Id,
 							FusionColumnGroupId:      fusionColumnGroup.Id,
 							PositionInFusion:         nullable.NewNullInt64(int64(splitColumnNumber)),
-							TotalInFusion:            nullable.NewNullInt64(int64(fusionColunmList[fusionIndex].ColumnCount)),
+							TotalInFusion:            nullable.NewNullInt64(int64(fusionColumnList[fusionIndex].ColumnCount)),
 							ColumnName: nullable.NewNullString(
 								fmt.Sprintf(
 									"%v(%v/%v)",
 									scd.sourceColumnInfo.ColumnName.Value(),
-									splitColumnNumber, fusionColunmList[fusionIndex].ColumnCount,
+									splitColumnNumber, fusionColumnList[fusionIndex].ColumnCount,
 								),
 							),
 							Position: nullable.NewNullInt64(int64(maxColumnPosition + splitColumnsAdded)),
@@ -274,18 +293,22 @@ func (indexer *BitsetIndexerType) buildBitsets(
 					// TODO: Consider if needed
 					// targetTable.Columns = append(targetTable.Columns,scd.splitColumnInfoList...)
 
-					mappedSplitColumns[fusionColunmList[fusionIndex].SourceColumnPosition] = scd.splitColumnInfoList
+					mappedSplitColumns[fusionColumnList[fusionIndex].SourceColumnPosition] = scd.splitColumnInfoList
 				}
-				splitColumnMap[fusionColumnGroupKey] = mappedSplitColumns
+				mappedColumnGroups[fusionColumnGroupKey] = mappedSplitColumns
 			} else {
 				for splitRowDataIndex, scd := range splitColumnListData {
 					found := false
-					position := fusionColunmList[splitRowDataIndex].SourceColumnPosition
+					position := fusionColumnList[splitRowDataIndex].SourceColumnPosition
 					if scd.splitColumnInfoList, found = mappedSplitColumns[position]; !found {
 						//TODO:
 					}
 				}
 			}
+
+			prevFusionColumnGroupKey = fusionColumnGroupKey
+			prevMappedSplitColumns = mappedSplitColumns
+
 			for _, scd := range splitColumnListData {
 				for columnIndex := range scd.splitColumnInfoList {
 
@@ -302,7 +325,6 @@ func (indexer *BitsetIndexerType) buildBitsets(
 				}
 
 			}
-
 		}
 
 		return nil
@@ -317,7 +339,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 	}
 
 	if log != nil {
-		log.Info(packageName, funcName, "Start processing file %v ", pathToFile)
+		log.Infof("Start processing file %v ", pathToFile)
 	}
 
 	linesRead, err := dumper.ReadFromFile(
@@ -327,11 +349,12 @@ func (indexer *BitsetIndexerType) buildBitsets(
 	)
 
 	if err != nil {
-		fmt.Errorf("could not process dump file %v: %v", pathToFile, err)
+		err = fmt.Errorf("could not process dump file %v:\n%v", pathToFile, err)
+		log.Error(err)
 		return
 	} else {
 		if log != nil {
-			log.Info(packageName, funcName, "File %v of %v lines have been processed", pathToFile, linesRead)
+			log.Infof("File %v of %v lines have been processed", pathToFile, linesRead)
 		}
 	}
 

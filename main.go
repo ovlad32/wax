@@ -120,7 +120,7 @@ func test1() {
 	}
 
 	ctx := context.Background()
-	table, err := repository.TableInfoById(ctx, 111) //100:111
+	table, err := repository.TableInfoById(ctx, 2) //100:111
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -129,6 +129,7 @@ func test1() {
 			&index.BitsetIndexConfigType{
 				DumperConfig: hearth.AdaptDataReaderConfig(config),
 				BitsetPath:   config.BitsetPath,
+				Log: logrus.New(),
 			},
 		)
 		err = indexer.BuildBitsets(
@@ -147,6 +148,7 @@ func test1() {
 			DumpReaderConfig:     hearth.AdaptDataReaderConfig(config),
 			PathToSliceDirectory: config.BitsetPath,
 			MaxRowCountPerFile:   10000,
+
 		})
 		if err != nil {
 			err = fmt.Errorf("could not do category split for table %v: %v", table, err)
@@ -161,45 +163,46 @@ func test1() {
 			log.Fatal(err)
 		}
 	}
-
-	dumpConfig := hearth.AdaptDataReaderConfig(config)
-	dumpConfig.GZip = false
-	sorter := sort.NewColumnSorter(&sort.ColumnSorterConfigType{
-		PathToSortedSliceDirectory: "./Sorted",
-		DumpReaderConfig:           dumpConfig,
-	})
-
-	err = sorter.SortByColumn(ctx,
-		"C:/home/vlad/data.253.4/BINDATA/111/175692/175807/144764187",
-		1000,
-		misc.PositionFlagsAs(misc.PositionOn, len(table.ColumnList()), []int{8}...),
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	searcher, _ := search.NewColumnSearcher(
-		&search.ColumnSearcherConfigType{
-			DumpReaderConfig: *dumpConfig,
+	if false {
+		dumpConfig := hearth.AdaptDataReaderConfig(config)
+		dumpConfig.GZip = false
+		sorter := sort.NewColumnSorter(&sort.ColumnSorterConfigType{
+			PathToSortedSliceDirectory: "./Sorted",
+			DumpReaderConfig:           dumpConfig,
 		})
 
-	sortedFile := "C:/home/vlad/data.253.4/BINDATA/111/175692/175807/144764187.sorted"
-	s1, s2, s3 := searcher.Search(ctx, sortedFile, true, 8, 8, [][]byte{
-		[]byte("121185"),
-		[]byte("999-83-7009"),
-		[]byte("35183"),
-		[]byte("1997-09-10 00:00:00.0"),
-		[]byte("2003.8231.8275.4524"),
-		[]byte("LONG TERM"),
-		[]byte("1293200"),
-		[]byte("USD"),
-		[]byte("1998-05-25 00:00:00.0"),
-		[]byte("LAND"),
-		[]byte("6324500"),
-		[]byte("USD"),
-	},
-	)
-	fmt.Println(s1)
-	fmt.Println(s2)
-	fmt.Println(s3)
+		err = sorter.SortByColumn(ctx,
+			"C:/home/vlad/data.253.4/BINDATA/111/175692/175807/144764187",
+			1000,
+			misc.PositionFlagsAs(misc.PositionOn, len(table.ColumnList()), []int{8}...),
+		)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		searcher, _ := search.NewColumnSearcher(
+			&search.ColumnSearcherConfigType{
+				DumpReaderConfig: *dumpConfig,
+			})
+
+		sortedFile := "C:/home/vlad/data.253.4/BINDATA/111/175692/175807/144764187.sorted"
+		s1, s2, s3 := searcher.Search(ctx, sortedFile, true, 8, 8, [][]byte{
+			[]byte("121185"),
+			[]byte("999-83-7009"),
+			[]byte("35183"),
+			[]byte("1997-09-10 00:00:00.0"),
+			[]byte("2003.8231.8275.4524"),
+			[]byte("LONG TERM"),
+			[]byte("1293200"),
+			[]byte("USD"),
+			[]byte("1998-05-25 00:00:00.0"),
+			[]byte("LAND"),
+			[]byte("6324500"),
+			[]byte("USD"),
+		},
+		)
+		fmt.Println(s1)
+		fmt.Println(s2)
+		fmt.Println(s3)
+	}
 }

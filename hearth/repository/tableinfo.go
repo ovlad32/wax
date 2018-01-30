@@ -7,10 +7,17 @@ import (
 	"github.com/ovlad32/wax/hearth/handling/nullable"
 )
 
-func tableInfo(ctx context.Context, where whereFuncType) (result []*dto.TableInfoType, err error) {
+func TableInfoSeqId() (id int64, err error) {
+	err = iDb.QueryRow("select nextval('TABLE_INFO_SEQ')").Scan(&id)
+	if err != nil {
+		err = fmt.Errorf("could not get a sequential number from TABLE_INFO_SEQ: %v", err)
+	}
+	return
+}
+
+func tableInfo(ctx context.Context, where string, args... interface{}) (result []*dto.TableInfoType, err error) {
 
 	result = make([]*dto.TableInfoType, 0, 1)
-	var args []interface{}
 	query := `SELECT 
 		 ID
 		 ,DATABASE_NAME
@@ -25,10 +32,8 @@ func tableInfo(ctx context.Context, where whereFuncType) (result []*dto.TableInf
          ,SOURCE_SLICE_TABLE_INFO_ID
 		 FROM TABLE_INFO `
 
-	if where != nil {
-		var whereClause string
-		whereClause, args = where()
-		query = query + whereClause
+	if where != "" {
+		query = query + where
 	}
 	rows, err := QueryContext(ctx,query,args...)
 	if err != nil {
@@ -65,14 +70,6 @@ func tableInfo(ctx context.Context, where whereFuncType) (result []*dto.TableInf
 	return
 }
 
-func TableInfoSeqId() (id int64, err error) {
-	err = iDb.QueryRow("select nextval('TABLE_INFO_SEQ')").Scan(&id)
-	if err != nil {
-		err = fmt.Errorf("could not get a sequential number from TABLE_INFO_SEQ: %v", err)
-	}
-	return
-}
-
 func PutTableInfo(ctx context.Context, entity *dto.TableInfoType) (err error) {
 	var newOne bool
 
@@ -91,7 +88,7 @@ func PutTableInfo(ctx context.Context, entity *dto.TableInfoType) (err error) {
 		newOne = true
 	}
 
-	args := []interface{}{
+	data := varray{
 		entity.Id,
 		entity.DatabaseName,
 		entity.Dumped,
@@ -119,8 +116,8 @@ func PutTableInfo(ctx context.Context, entity *dto.TableInfoType) (err error) {
 			,SCHEMA_NAME
 			,METADATA_ID
 			,SOURCE_SLICE_TABLE_INFO_ID
-       ) key(ID) values (`+ParamPlaces(len(args))+`)`,
-       	args...,
+       ) key(ID) `+data.valuePlaceholders(),
+       	data...
        	)
 
 	if err != nil {
@@ -148,9 +145,8 @@ func TableInfoByMetadata(ctx context.Context, metadata *dto.MetadataType) (resul
 
 	result, err = tableInfo(
 		ctx,
-		func()(string,varray){
-			return " WHERE METADATA_ID = ? and DUMPED = true", varray{metadata.Id}
-			},
+" WHERE METADATA_ID = ? and DUMPED = true",
+		metadata.Id,
 		)
 
 	if err != nil {
@@ -171,9 +167,8 @@ func TableInfoById(ctx context.Context, id int) (result *dto.TableInfoType, err 
 
 	res, err := tableInfo(
 		ctx,
-		func()(string,varray){
-			return " WHERE ID = ? ", varray{id}
-		},
+	" WHERE ID = ? ",
+	id,
 	)
 
 	if err == nil && len(res) > 0 {

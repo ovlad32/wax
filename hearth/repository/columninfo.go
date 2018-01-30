@@ -5,146 +5,7 @@ import (
 	"fmt"
 	"github.com/ovlad32/wax/hearth/dto"
 	"github.com/ovlad32/wax/hearth/handling/nullable"
-	"strings"
 )
-
-
-
-func columnInfo(ctx context.Context, where whereFuncType ) (result []*dto.ColumnInfoType, err error) {
-
-	result = make([]*dto.ColumnInfoType,0, 5)
-	var args varray
-	query := `SELECT  
-		 ID 
-		 ,NAME 
-		 ,DATA_TYPE 
-		 ,REAL_TYPE 
-		 ,CHAR_LENGTH 
-		 ,DATA_PRECISION 
-		 ,DATA_SCALE 
-		 ,POSITION 
-		 ,TOTAL_ROW_COUNT 
-		 ,UNIQUE_ROW_COUNT 
-		 ,HASH_UNIQUE_COUNT 
-		 ,TABLE_INFO_ID
-         ,EMPTY_COUNT
-	     ,NUMERIC_COUNT
-	     ,MIN_FVAL
-		 ,MAX_FVAL
-		 ,MIN_SVAL
-		 ,MAX_SVAL
-		 ,INTEGER_COUNT
-		 ,INTEGER_UNIQUE_COUNT
-		 ,MOVING_MEAN
-		 ,MOVING_STDDEV
-		 ,POSITION_IN_PK
-		 ,TOTAL_IN_PK
-		 ,SOURCE_FUSION_COLUMN_INFO_ID
-         ,POSITION_IN_FUSION
-         ,TOTAL_IN_FUSION
-		 ,FUSION_COLUMN_GROUP_ID
-         ,FUSION_SEPARATOR
-         ,SOURCE_SLICE_COLUMN_INFO_ID
-		 FROM COLUMN_INFO `
-
-	if where != nil {
-		var whereClause string
-		whereClause,args = where()
-		query = query + whereClause
-	}
-
-	query = query + " ORDER BY POSITION"
-	rws,err := QueryContext(ctx, query, args...)
-	if err != nil {
-		err = fmt.Errorf("could not scan column_info entity data:%v",err)
-
-		return
-	}
-	defer rws.Close()
-
-	for rws.Next() {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			var row dto.ColumnInfoType
-			err = rws.Scan(
-				&row.Id,
-				&row.ColumnName,
-				&row.DataType,
-				&row.RealDataType,
-				&row.CharLength,
-				&row.DataPrecision,
-				&row.DataScale,
-				&row.Position,
-				&row.TotalRowCount,
-				&row.UniqueRowCount,
-				&row.HashUniqueCount,
-				&row.TableInfoId,
-				&row.NonNullCount,
-				&row.NumericCount,
-				&row.MinNumericValue,
-				&row.MaxNumericValue,
-				&row.MinStringValue,
-				&row.MaxStringValue,
-				&row.IntegerCount,
-				&row.IntegerUniqueCount,
-				&row.MovingMean,
-				&row.MovingStdDev,
-				&row.PositionInPK,
-				&row.TotalInPK,
-				&row.SourceFusionColumnInfoId,
-				&row.PositionInFusion,
-				&row.TotalInFusion,
-				&row.FusionColumnGroupId,
-				&row.FusionSeparator,
-				&row.SourceSliceColumnInfoId,
-			)
-			if err != nil {
-				return
-			}
-			result = append(result, &row)
-		}
-	}
-	return
-}
-
-func ColumnInfoByTable(ctx context.Context, tableInfo *dto.TableInfoType) (result []*dto.ColumnInfoType, err error) {
-
-	if tableInfo == nil {
-		fmt.Errorf( "table reference is not initialized")
-		return
-	}
-	if !tableInfo.Id.Valid(){
-		fmt.Errorf( "table.Id is not initialized")
-		return
-	}
-
-	result, err = columnInfo(ctx,
-		func()(string,varray) {
-			return " WHERE TABLE_INFO_ID = %v and FUSION_COLUMN_GROUP_ID is null", varray{tableInfo.Id.Value()}
-		},
-		)
-	if err == nil {
-		for index := range result {
-			result[index].TableInfo = tableInfo
-		}
-	}
-	return
-}
-
-func ColumnInfoById(ctx context.Context, Id int) (result *dto.ColumnInfoType, err error) {
-
-	res, err := columnInfo(ctx, func()(string,varray) {
-		return 	" WHERE ID = ?",varray{Id}
-		},
-		)
-
-	if err == nil && len(res) > 0 {
-		result = res[0]
-	}
-	return
-}
 
 
 func ColumnInfoSeqId() (id int64, err error) {
@@ -239,9 +100,9 @@ func PutColumnInfo(ctx context.Context, columnInfo *dto.ColumnInfoType) (err err
 		 ,FUSION_COLUMN_GROUP_ID
          ,FUSION_SEPARATOR
 		 ,SOURCE_SLICE_COLUMN_INFO_ID
-       ) key(ID) values (`+ParamPlaces(len(data))+`)`
+       ) key(ID) `+data.valuePlaceholders()
 
-       _,err = ExecContext(ctx,dml,data...)
+	_,err = ExecContext(ctx,dml,data...)
 
 	if err != nil {
 		if newOne {
@@ -256,23 +117,157 @@ func PutColumnInfo(ctx context.Context, columnInfo *dto.ColumnInfoType) (err err
 	return
 }
 
+func columnInfo(ctx context.Context, where string, args... interface{} ) (result []*dto.ColumnInfoType, err error) {
+
+	result = make([]*dto.ColumnInfoType,0, 5)
+	query := `SELECT  
+		 ID 
+		 ,NAME 
+		 ,DATA_TYPE 
+		 ,REAL_TYPE 
+		 ,CHAR_LENGTH 
+		 ,DATA_PRECISION 
+		 ,DATA_SCALE 
+		 ,POSITION 
+		 ,TOTAL_ROW_COUNT 
+		 ,UNIQUE_ROW_COUNT 
+		 ,HASH_UNIQUE_COUNT 
+		 ,TABLE_INFO_ID
+         ,EMPTY_COUNT
+	     ,NUMERIC_COUNT
+	     ,MIN_FVAL
+		 ,MAX_FVAL
+		 ,MIN_SVAL
+		 ,MAX_SVAL
+		 ,INTEGER_COUNT
+		 ,INTEGER_UNIQUE_COUNT
+		 ,MOVING_MEAN
+		 ,MOVING_STDDEV
+		 ,POSITION_IN_PK
+		 ,TOTAL_IN_PK
+		 ,SOURCE_FUSION_COLUMN_INFO_ID
+         ,POSITION_IN_FUSION
+         ,TOTAL_IN_FUSION
+		 ,FUSION_COLUMN_GROUP_ID
+         ,FUSION_SEPARATOR
+         ,SOURCE_SLICE_COLUMN_INFO_ID
+		 FROM COLUMN_INFO `
+
+	if where != "" {
+		query = query + where
+	}
+
+	query = query + " ORDER BY POSITION"
+	rws,err := QueryContext(ctx, query, args...)
+	if err != nil {
+		err = fmt.Errorf("could not scan column_info entity data:%v",err)
+
+		return
+	}
+	defer rws.Close()
+
+	for rws.Next() {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			var row dto.ColumnInfoType
+			err = rws.Scan(
+				&row.Id,
+				&row.ColumnName,
+				&row.DataType,
+				&row.RealDataType,
+				&row.CharLength,
+				&row.DataPrecision,
+				&row.DataScale,
+				&row.Position,
+				&row.TotalRowCount,
+				&row.UniqueRowCount,
+				&row.HashUniqueCount,
+				&row.TableInfoId,
+				&row.NonNullCount,
+				&row.NumericCount,
+				&row.MinNumericValue,
+				&row.MaxNumericValue,
+				&row.MinStringValue,
+				&row.MaxStringValue,
+				&row.IntegerCount,
+				&row.IntegerUniqueCount,
+				&row.MovingMean,
+				&row.MovingStdDev,
+				&row.PositionInPK,
+				&row.TotalInPK,
+				&row.SourceFusionColumnInfoId,
+				&row.PositionInFusion,
+				&row.TotalInFusion,
+				&row.FusionColumnGroupId,
+				&row.FusionSeparator,
+				&row.SourceSliceColumnInfoId,
+			)
+			if err != nil {
+				return
+			}
+			result = append(result, &row)
+		}
+	}
+	return
+}
+
+func ColumnInfoByTable(ctx context.Context, tableInfo *dto.TableInfoType) (result []*dto.ColumnInfoType, err error) {
+
+	if tableInfo == nil {
+		fmt.Errorf( "table reference is not initialized")
+		return
+	}
+	if !tableInfo.Id.Valid(){
+		fmt.Errorf( "table.Id is not initialized")
+		return
+	}
+
+	result, err = columnInfo(
+		ctx,
+		" WHERE TABLE_INFO_ID = ? and FUSION_COLUMN_GROUP_ID is null",
+		tableInfo.Id.Value(),
+		)
+	if err == nil {
+		for index := range result {
+			result[index].TableInfo = tableInfo
+		}
+	}
+	return
+}
+
+func ColumnInfoById(ctx context.Context, Id int) (result *dto.ColumnInfoType, err error) {
+
+	res, err := columnInfo(
+		ctx,
+		" WHERE ID = ?",
+		Id,
+		)
+
+	if err == nil && len(res) > 0 {
+		result = res[0]
+	}
+	return
+}
+
+
+
 func fusionColumnGroup(
 	ctx context.Context,
-	where whereFuncType,
+	where string,
+	args ...interface{},
 ) (result dto.FusionColumnGroupListType, err error) {
 
 	result = make([]*dto.FusionColumnGroupType, 0)
-	var args varray
 	query := "SELECT " +
 		" ID" +
 		" ,TABLE_INFO_ID" +
 		" ,GROUP_KEY" +
 		" FROM FUSION_COLUMN_GROUP"
 
-	if where != nil {
-		var whereClause string
-		whereClause, args = where()
-		query = query + whereClause
+	if where != "" {
+		query = query + where
 	}
 
 	rws, err := QueryContext(ctx, query, args...)
@@ -344,10 +339,10 @@ func fusionColumnGroupByTableId(
 	Id int64,
 ) (result dto.FusionColumnGroupListType, err error) {
 
-	result, err = fusionColumnGroup(ctx,
-		func()(string,varray) {
-			return " WHERE TABLE_INFO_ID = ?",varray{Id}
-		},
+	result, err = fusionColumnGroup(
+		ctx,
+		" WHERE TABLE_INFO_ID = ?",
+		Id,
 		)
 	return
 }
@@ -355,10 +350,10 @@ func fusionColumnGroupByTableId(
 
 func ColumnsByGroupId(ctx context.Context, groupId int64) (result dto.ColumnInfoListType, err error) {
 
-	result, err = columnInfo(ctx,
-		func()(string,varray) {
-			return " WHERE FUSION_COLUMN_GROUP_ID = ?", varray{groupId}
-		},
+	result, err = columnInfo(
+		ctx,
+		" WHERE FUSION_COLUMN_GROUP_ID = ?",
+		groupId,
 	)
 	return
 
@@ -368,7 +363,7 @@ func PutFusionColumnGroup(ctx context.Context, entity *dto.FusionColumnGroupType
 	var newOne bool
 
 	if !entity.Id.Valid() {
-		var id int64;
+		var id int64
 		id, err = ColumnInfoSeqId()
 		if err != nil {
 			return
@@ -377,27 +372,17 @@ func PutFusionColumnGroup(ctx context.Context, entity *dto.FusionColumnGroupType
 		newOne = true
 	}
 	if newOne {
+		data := varray{
+			entity.Id,
+			entity.TableInfoId,
+			entity.GroupKey,
+		}
 		dml :=
 			`insert into fusion_column_group (
               id, table_info_id, group_key
-			 ) values ( %v,%v,'%v)`
-		switch currentDbType {
-		case H2:
-			dml = fmt.Sprintf(dml,
-				entity.Id,
-				entity.TableInfoId,
-				"'"+entity.GroupKey+"'",
-			)
+			 ) `+data.valuePlaceholders()
+		_,err = ExecContext(ctx,dml,data...)
 
-			_, err = iDb.Exec(dml)
-		default:
-			dml = strings.Replace(dml, "%v", "?", -1)
-			_, err = iDb.Exec(dml,
-				entity.Id,
-				entity.TableInfoId,
-				entity.GroupKey,
-			)
-		}
 		if err != nil {
 			entity.Id = nullable.NullInt64{}
 			err = fmt.Errorf("could not put FusionColumnGroup new entity: %v", err)

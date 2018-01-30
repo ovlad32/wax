@@ -13,7 +13,15 @@ import (
 var packageName string = "repository"
 
 type varray []interface{}
-type whereFuncType func() (string,varray)
+
+func(v varray ) valuePlaceholders() string{
+	a:=make([]string,len(v))
+	for index := range v {
+		a[index] = `?`
+	}
+	return `values (`+strings.Join(a,`,`)+`)`
+}
+
 
 type BEDBType string
 var (
@@ -118,7 +126,8 @@ func convert2H2(statement string, args []interface{}) (string, []interface{}) {
 			if !rValue.Valid() {
 				args[index] = NullString
 			} else{
-				args[index] = maskQuotes(rValue.InternalValue.String)
+				//args[index] = maskQuotes(rValue.InternalValue.String)
+				args[index] = rValue.InternalValue.String
 			}
 		default:
 			args[index] = iValue
@@ -143,11 +152,4 @@ func QueryRowContext(ctx context.Context, statement string,args...interface{}) (
 	return iDb.QueryRowContext(ctx, statement, args...)
 }
 
-func ParamPlaces(n int) string {
-	a:=make([]string,n)
-	for index := range a {
-		a[index]="?"
-	}
-	return strings.Join(a,",")
-}
 

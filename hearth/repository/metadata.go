@@ -7,8 +7,47 @@ import (
 	"context"
 )
 
-func metadata(ctx context.Context, where whereFuncType) (result []*dto.MetadataType, err error) {
-	var args varray
+
+func MetadataSeqId() (id int64, err error) {
+	err = iDb.QueryRow("select nextval('META_DATA_SEQ')").Scan(&id)
+	if err != nil {
+		err = fmt.Errorf("could not get a sequential number from META_DATA_SEQ: %v", err)
+	}
+	return
+}
+
+
+func PutMetadata(ctx context.Context, m *dto.MetadataType) (err error) {
+	newOne := false;
+	if !m.Id.Valid() {
+		var id int64
+		id, err = MetadataSeqId()
+		if err != nil {
+			return
+		}
+		m.Id = nullable.NewNullInt64(id)
+		newOne = true
+	}
+	data := varray{
+		m.Id,
+		m.Index,
+		m.Version,
+		m.DatabaseConfigId,
+	}
+	statement := `merge into metadata (id, index, version, database_config) key(id) `+data.valuePlaceholders()
+
+	_, err = ExecContext(ctx,statement,data...)
+	if err != nil {
+		if newOne {
+			m.Id = nullable.NullInt64{}
+		}
+		return
+	}
+
+	return
+}
+
+func metadata(ctx context.Context, where string,args...interface{} ) (result []*dto.MetadataType, err error) {
 	result = make([]*dto.MetadataType, 0)
 	query := "SELECT " +
 		" ID" +
@@ -17,10 +56,8 @@ func metadata(ctx context.Context, where whereFuncType) (result []*dto.MetadataT
 		" ,DATABASE_CONFIG_ID" +
 		" FROM METADATA "
 
-	if where != nil {
-		var whereClause string
-		whereClause,args = where()
-		query = query + whereClause
+	if where != "" {
+		query = query + where
 	}
 //	query = query + " ORDER BY ID"
 	rws, err := QueryContext(ctx,query,args...)
@@ -85,9 +122,8 @@ func HighestDatabaseConfigVersion(ctx context.Context, DatabaseConfigId uint) (r
 func MetadataById(ctx context.Context, metadataId int) (result *dto.MetadataType, err error) {
 	results, err := metadata(
 		ctx,
-		func() (string,varray) {
-			return " WHERE ID = ?",varray{metadataId}
-		},
+		" WHERE ID = ?",
+			metadataId,
 	)
 	if err == nil && len(results) > 0 {
 		result = results[0]
@@ -122,40 +158,5 @@ func MetadataByWorkflowId(workflowId int) (metadataId []int, err error) {
 		}
 		metadataId = append(metadataId, id)
 	}
-	return
-}
-
-func PutMetadata(m *dto.MetadataType) (err error) {
-	tx, err := iDb.Begin()
-	if err != nil {
-		return
-	}
-
-	if !m.Id.Valid() {
-		row := tx.QueryRow("select nextval('META_DATA_SEQ')")
-		var id int64
-		err = row.Scan(&id)
-		if err != nil {
-			return
-		}
-		m.Id = nullable.NewNullInt64(id)
-	}
-
-	statement := "merge into metadata (id, index, version, database_config) " +
-		" key(id) values(%v,%v,%v,%v,%v,%v,%v,%v)"
-
-	statement = fmt.Sprintf(
-		statement,
-		m.Id,
-		m.Index,
-		m.Version,
-		m.DatabaseConfigId,
-	)
-	_, err = tx.Exec(statement)
-	if err != nil {
-		return
-	}
-
-	tx.Commit()
 	return
 }

@@ -34,8 +34,11 @@ func PutAppNode(ctx context.Context, entity *dto.AppNodeType) (err error) {
 			entity.State,
 			entity.Role,
 			}
-		dml := `insert into app_node(id,hostname,address,last_heartbeat,state,role) values (`+ParamPlaces(len(params))+`)`
-		_, err = ExecContext(ctx, dml,params...)
+		dml :=
+			`insert into app_node(id,hostname,address,last_heartbeat,state,role)`+
+		 	params.valuePlaceholders()
+
+		 	_, err = ExecContext(ctx, dml,params...)
 		if err != nil {
 			err = fmt.Errorf("could not add a new app_node row: %v", err)
 			entity.Id = nullable.NullInt64{}
@@ -52,9 +55,9 @@ func PutAppNode(ctx context.Context, entity *dto.AppNodeType) (err error) {
 	return
 }
 
-func appNode(ctx context.Context, where whereFuncType) (result []*dto.AppNodeType, err error) {
+func appNode(ctx context.Context, where string,args ...interface{}) (result []*dto.AppNodeType, err error) {
 
-	var args []interface{}
+
 	result = make([]*dto.AppNodeType, 0, 1)
 	query := `SELECT 
 		 ID
@@ -65,10 +68,8 @@ func appNode(ctx context.Context, where whereFuncType) (result []*dto.AppNodeTyp
 		 ,ROLE 
 		 FROM APP_NODE `
 
-	if where != nil {
-		var whereClause string
-		whereClause, args = where()
-		query = query + whereClause
+	if where != "" {
+		query = query + where
 	}
 	rows, err := QueryContext(ctx, query, args...)
 	if err != nil {
@@ -96,10 +97,9 @@ func appNode(ctx context.Context, where whereFuncType) (result []*dto.AppNodeTyp
 func AppNameById(ctx context.Context, appNodeId int64) (result *dto.AppNodeType, err error) {
 	results, err := appNode(
 		ctx,
-		func() (string, varray) {
-			return `WHERE ID = ?`, varray{appNodeId}
-		},
-	)
+		`WHERE ID = ?`,
+		appNodeId,
+		)
 	if err == nil && len(results) > 0 {
 		result = results[0]
 	}

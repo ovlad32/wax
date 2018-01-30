@@ -44,9 +44,7 @@ func PutContentFeature(ctx context.Context, feature *dto.ContentFeatureType) (er
 				, moving_mean 
 				, moving_stddev 
 			 ) 
-             key (column_info_id, key) 
-			 values(`+ParamPlaces(len(data))+`)`,
-
+             key (column_info_id, key) `+data.valuePlaceholders(),
 		)
 
 	if err != nil {

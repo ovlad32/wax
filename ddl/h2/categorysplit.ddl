@@ -25,14 +25,14 @@ create table if not exists category_split_coldata(
  constraint category_split_coldata_pk primary key(id)
 );
 
-drop table if exists category_split_rowdata;
-create table if not exists category_split_rowdata(
+drop table if exists category_split_data;
+create table if not exists category_split_data(
  id bigint not null,
  category_split_id bigint not null,
  data text,
- constraint category_split_rowdata_pk primary key(id)
+ constraint category_split_data_pk primary key(id)
 );
-
+/*
 
 drop table if  exists category_split_file;
 create table if not exists category_split_file(
@@ -45,7 +45,7 @@ create table if not exists category_split_file(
   row_count bigint,
   constraint category_split_file_pk primary key(id)
 );
-
+*/
 
 
 
@@ -70,6 +70,7 @@ create table if not exists fusion_column_group (
   id bigint,
   table_info_id bigint,
   group_key VARCHAR(2000),
+  row_count bigint,
   constraint fusion_column_group_pk primary key (id),
   constraint fusion_column_group_uq unique (table_info_id, group_key)
 );
@@ -93,8 +94,10 @@ alter table column_info add column if not exists FUSION_COLUMN_GROUP_ID bigint;
 alter table column_info add column if not exists EMPTY_COUNT bigint;
 alter table column_info add column if not exists FUSION_SEPARATOR varchar(1);
 
-alter table table_info add column if not exists SOURCE_SLICE_TABLE_INFO_ID bigint;
 alter table column_info add column if not exists SOURCE_SLICE_COLUMN_INFO_ID bigint;
+
+alter table table_info add column if not exists SOURCE_SLICE_TABLE_INFO_ID bigint;
+alter table table_info add column if not exists CATEGORY_SPLIT_DATA_ID bigint;
 
 
 create table if not exists column_feature_stats (

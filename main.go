@@ -146,10 +146,10 @@ func test1() {
 		}
 	}
 	if false {
-		splitter, err := categorysplit.NewCategorySplitter(&categorysplit.CategorySplitConfigType{
+		splitter, err := categorysplit.NewCategorySplitter(&categorysplit.ConfigType{
 			DumpReaderConfig:     hearth.AdaptDataReaderConfig(config),
 			PathToSliceDirectory: config.BitsetPath,
-			MaxRowCountPerFile:   10000,
+			MaxRowCountPerFile:   1000000,
 
 		})
 		if err != nil {
@@ -159,7 +159,7 @@ func test1() {
 		err = splitter.SplitFile(
 			ctx,
 			path.Join(config.AstraDumpPath, table.PathToFile.String()),
-			dto.ColumnInfoListType{table.Columns[7]}, //7:2
+			dto.ColumnInfoListType{table.Columns[1],table.Columns[2],table.Columns[3]}, //7:2
 		)
 		if err != nil {
 			stdlog.Fatal(err)

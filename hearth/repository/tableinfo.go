@@ -100,6 +100,7 @@ func PutTableInfo(ctx context.Context, entity *dto.TableInfoType) (err error) {
 		entity.SchemaName,
 		entity.MetadataId,
 		entity.SourceSliceTableInfoId,
+		entity.CategorySplitDataId,
 	}
 
 
@@ -116,6 +117,7 @@ func PutTableInfo(ctx context.Context, entity *dto.TableInfoType) (err error) {
 			,SCHEMA_NAME
 			,METADATA_ID
 			,SOURCE_SLICE_TABLE_INFO_ID
+		    ,CATEGORY_SPLIT_DATA_ID
        ) key(ID) `+data.valuePlaceholders(),
        	data...
        	)

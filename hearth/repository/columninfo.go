@@ -376,16 +376,24 @@ func PutFusionColumnGroup(ctx context.Context, entity *dto.FusionColumnGroupType
 			entity.Id,
 			entity.TableInfoId,
 			entity.GroupKey,
+			entity.RowCount,
 		}
 		dml :=
 			`insert into fusion_column_group (
-              id, table_info_id, group_key
+              id, table_info_id, group_key,row_count
 			 ) `+data.valuePlaceholders()
 		_,err = ExecContext(ctx,dml,data...)
 
 		if err != nil {
 			entity.Id = nullable.NullInt64{}
 			err = fmt.Errorf("could not put FusionColumnGroup new entity: %v", err)
+			return err
+		}
+	} else {
+		dml := `update fusion_column_group set row_count=? where id = ?`
+		_, err  = ExecContext(ctx,dml,entity.RowCount,entity.Id)
+		if err != nil {
+			err = fmt.Errorf("could not update FusionColumnGroup entity: %v", err)
 			return err
 		}
 	}

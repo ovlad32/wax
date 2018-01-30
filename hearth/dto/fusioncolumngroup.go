@@ -7,9 +7,10 @@ import (
 )
 
 type FusionColumnGroupType struct {
-	Id nullable.NullInt64
+	Id          nullable.NullInt64
 	TableInfoId nullable.NullInt64
-	GroupKey string
+	GroupKey    string
+	RowCount    nullable.NullInt64
 }
 
 type FusionColumnGroupListType []*FusionColumnGroupType;

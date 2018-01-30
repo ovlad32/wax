@@ -32,24 +32,12 @@ type CategorySplitColumnDataType struct {
 }
 type CategorySplitColumnDataListType []*CategorySplitColumnDataType
 
-type CategorySplitRowDataType struct {
+type CategorySplitDataType struct {
 	Id nullable.NullInt64
 	CategorySplitId nullable.NullInt64
 	CategorySplit *CategorySplitType
 	Data string
 }
-type CategorySplitRowDataListType []*CategorySplitRowDataType
+type CategorySplitDataListType []*CategorySplitDataType
 
-type CategorySplitFileType struct {
-	Id nullable.NullInt64
-	CategorySplitRowDataId nullable.NullInt64
-	CategorySplitRowData *CategorySplitRowDataType
-	PathToFile string
-	Perma bool
-	Indexed bool
-	Zipped bool
-	RowCount nullable.NullInt64
-}
-
-type CategorySplitFileListType []*CategorySplitFileType
 

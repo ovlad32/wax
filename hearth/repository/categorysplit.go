@@ -44,9 +44,10 @@ func PutCategorySplit(ctx context.Context, entity *dto.CategorySplitType) (err e
 	}
 
 	if  newOne {
+		data := varray {entity.Id,entity.TableInfoId,entity.Status}
 		_, err = ExecContext(ctx,
-			`insert into category_split(id,table_info_id,status) values(?,?,?)`,
-				entity.Id,entity.TableInfoId,entity.Status,
+			`insert into category_split(id,table_info_id,status)`+data.valuePlaceholders(),
+			data...,
 		)
 		if err != nil {
 			err = fmt.Errorf("could not add a new category_split row: %v",err)
@@ -157,9 +158,10 @@ func PutCategorySplitColumnDataType(ctx context.Context, entity *dto.CategorySpl
 	}
 
 	if  newOne {
+		data := varray{entity.Id,entity.CategorySplitColumnId,entity.Data}
 		_,err = ExecContext(ctx,
-			`insert into category_split_coldata(id,category_split_column_id, data) values(?,?,?)`,
-			entity.Id,entity.CategorySplitColumnId,entity.Data,
+			`insert into category_split_coldata(id,category_split_column_id, data)`+data.valuePlaceholders(),
+				data...,
 		)
 		if err != nil {
 			err = fmt.Errorf("could not add a new category_split_coldata row: %v",err)
@@ -170,27 +172,27 @@ func PutCategorySplitColumnDataType(ctx context.Context, entity *dto.CategorySpl
 	return
 }
 
-func PutCategorySplitRowDataType(ctx context.Context, entity *dto.CategorySplitRowDataType) (err error) {
+func PutCategorySplitDataType(ctx context.Context, entity *dto.CategorySplitDataType) (err error) {
 	if entity == nil {
-		err = fmt.Errorf("categorySplitRowData reference is not initialized")
+		err = fmt.Errorf("categorySplitData reference is not initialized")
 		return
 	}
 
 
 	if len(entity.Data) == 0 {
-		err = fmt.Errorf("categorySplitRowData's Data is empty")
+		err = fmt.Errorf("categorySplitData's Data is empty")
 		return
 	}
 
 	if entity.CategorySplit != nil {
 		if !entity.CategorySplit.Id.Valid() {
-			err = fmt.Errorf("categorySplitRowData's CategorySplit.Id is not initialized is not initialized")
+			err = fmt.Errorf("categorySplitData's CategorySplit.Id is not initialized is not initialized")
 			return
 		}
 		entity.CategorySplitId = entity.CategorySplit.Id
 	} else {
 		if !entity.CategorySplitId.Valid() {
-			err = fmt.Errorf("categorySplitRowData's CategorySplitId is not initialized")
+			err = fmt.Errorf("categorySplitData's CategorySplitId is not initialized")
 			return
 		}
 	}
@@ -208,19 +210,20 @@ func PutCategorySplitRowDataType(ctx context.Context, entity *dto.CategorySplitR
 	}
 
 	if  newOne {
+		data := varray{entity.Id,entity.CategorySplitId,entity.Data}
 		_,err = ExecContext(ctx,
-			`insert into category_split_rowdata(id,category_split_id, data) values(?,?,?)`,
-			entity.Id,entity.CategorySplitId,entity.Data,
+			`insert into category_split_data(id,category_split_id, data)`+data.valuePlaceholders(),
+			data...,
 			)
 		if err != nil {
-			err = fmt.Errorf("could not add a new category_split_rowdata row: %v",err)
+			err = fmt.Errorf("could not add a new category_split_data entity: %v",err)
 			entity.Id = nullable.NullInt64{}
 			return
 		}
 	}
 	return
 }
-
+/*
 func PutCategorySplitFile(ctx context.Context, entity *dto.CategorySplitFileType) (err error) {
 	if entity == nil {
 		err = fmt.Errorf("categorySplitFile reference is not initialized")
@@ -273,4 +276,4 @@ func PutCategorySplitFile(ctx context.Context, entity *dto.CategorySplitFileType
 	}
 	return
 }
-
+*/

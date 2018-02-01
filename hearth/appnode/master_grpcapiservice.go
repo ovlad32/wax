@@ -1,18 +1,14 @@
 package appnode
 
-import (
-	"fmt"
-	"github.com/ovlad32/wax/hearth/dto"
-	pb "github.com/ovlad32/wax/hearth/grpcservice"
-	"github.com/ovlad32/wax/hearth/repository"
-	"github.com/sirupsen/logrus"
-	xcontext "golang.org/x/net/context"
-	"context"
-	"google.golang.org/grpc"
-	"net"
-	"strconv"
-	"time"
-)
+func (node *ApplicationNodeType) initMasterService() (err error) {
+
+
+
+	return
+}
+
+
+/*
 
 func (node *ApplicationNodeType) initAppNodeService() (err error) {
 
@@ -183,6 +179,9 @@ func (s *appNodeServiceType) AppNodeHeartBeat(
 	}
 	return
 }
+
+
+*/
 
 
 

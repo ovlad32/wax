@@ -17,7 +17,8 @@ type  dumper struct {
 	log *logrus.Logger
 }
 func (d dumper) EncodeResponse(resp *dumperResponse) (data[]byte,err error) {
-
+	//TODO:
+return
 
 }
 type dumperResponse struct{
@@ -63,5 +64,4 @@ func (d *dumper) Subscribe(subj string) (err error) {
 
 func (d *dumper) Unsubscribe() {
 	d.s.Unsubscribe()
-	d.c.SubscribeSync()
 }

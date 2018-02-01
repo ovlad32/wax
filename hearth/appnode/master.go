@@ -1,8 +1,7 @@
 package appnode
 
 func (node *ApplicationNodeType) StartMasterNode() (err error) {
-	node.wg.Add(1)
-	err = node.initAppNodeService()
+	//err = node.initAppNodeService()
 
 	if err != nil {
 		return err
@@ -10,7 +9,6 @@ func (node *ApplicationNodeType) StartMasterNode() (err error) {
 
 
 	node.initRestApiRouting()
-	node.wg.Wait()
 
 	/*
 		osSignal := make(chan os.Signal,1)
@@ -26,4 +24,8 @@ func (node *ApplicationNodeType) StartMasterNode() (err error) {
 	*/
 	return
 }
+
+
+
+
 

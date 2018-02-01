@@ -1,5 +1,5 @@
 package categorysplit
-
+/*
 import (
 	"github.com/nats-io/nuid"
 	"fmt"
@@ -28,12 +28,24 @@ type i interface {
 }
 
 type messager struct {
-	nats.
-	conn nats.E
+	conn *nats.EncodedConn
 }
 
 func (n messager) CreateChannel(tableId, splitId int64)(c interface{},err error) {
-	ct,err  := nats.NewEncodedConn(n.conn,nats.GOB_ENCODER)
+	nc,err := nats.Connect(nats.DefaultURL)
+	if err != nil {
+		return
+
+	}
+	n.conn,err  = nats.NewEncodedConn(nc,nats.GOB_ENCODER)
+	in := make(chan(BusCommandRequestType),0)
+	n.conn.BindRecvChan("buf",in)
+	select {
+		case msg := <-in:
+			n.
+			msg.command
+	}
+
 
 	if tableId == 0 {
 		panic(fmt.Sprintf("tableId is zero!"))
@@ -48,5 +60,5 @@ func (n messager) CreateChannel(tableId, splitId int64)(c interface{},err error)
 }
 
 
-
+*/
 

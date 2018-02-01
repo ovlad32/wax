@@ -21,7 +21,7 @@ import (
 	"runtime"
 	stdlog "log"
 	"runtime/pprof"
-	"path"
+	"github.com/nats-io/go-nats"
 )
 
 var packageName = "main"
@@ -78,24 +78,43 @@ func main() {
 		stdlog.Fatal(err)
 	}
 
-	node, err := appnode.NewApplicationNode(
-		&appnode.ApplicationNodeConfigType{
-			Logger:                config.Logger,
-			GrpcPort:              9100,
-			RestPort:              9200,
-			SlaveHeartBeatSeconds: 10,
-		},
-	)
-	if err != nil {
-		stdlog.Fatal(err)
-	}
 
 	if *applicationRole == "" || *applicationRole == "test" {
 		test1()
 	} else if *applicationRole == "master" {
-		node.StartMasterNode()
+		node, err := appnode.NewApplicationNode(
+			&appnode.ApplicationNodeConfigType{
+				Logger:                config.Logger,
+				GrpcPort:              9100,
+				RestPort:              9200,
+				NatsUrl:nats.DefaultURL,
+				Master:true,
+			},
+		)
+		if err != nil {
+			stdlog.Fatal(err)
+		}
+		node.Start()
+		runtime.Goexit()
+
+
 	} else if *applicationRole == "slave" {
-		node.StartSlaveNode(*masterNodeHost, *masterNodePort, *nodeIdDirectory)
+	//	node.StartSlaveNode(*masterNodeHost, *masterNodePort, *nodeIdDirectory)
+		node, err := appnode.NewApplicationNode(
+			&appnode.ApplicationNodeConfigType{
+				Logger:                config.Logger,
+				GrpcPort:              9100,
+				RestPort:              9201,
+				NatsUrl:nats.DefaultURL,
+				Master:false,
+				NodeName:"slave1",
+			},
+		)
+		if err != nil {
+			stdlog.Fatal(err)
+		}
+		node.Start()
+		runtime.Goexit()
 	} else {
 		stdlog.Fatalf("parameter role '%v' is not recognized", *applicationRole)
 	}
@@ -148,19 +167,20 @@ func test1() {
 	if false {
 		splitter, err := categorysplit.NewCategorySplitter(&categorysplit.ConfigType{
 			DumpReaderConfig:     hearth.AdaptDataReaderConfig(config),
-			PathToSliceDirectory: config.BitsetPath,
-			MaxRowCountPerFile:   1000000,
+			//PathToSliceDirectory: config.BitsetPath,
+			//MaxRowCountPerFile:   1000000,
 
 		})
+		_=splitter
 		if err != nil {
 			err = fmt.Errorf("could not do category split for table %v: %v", table, err)
 			stdlog.Fatal(err)
 		}
-		err = splitter.SplitFile(
+		/*err = splitter.SplitFile(
 			ctx,
 			path.Join(config.AstraDumpPath, table.PathToFile.String()),
 			dto.ColumnInfoListType{table.Columns[1],table.Columns[2],table.Columns[3]}, //7:2
-		)
+		)*/
 		if err != nil {
 			stdlog.Fatal(err)
 		}

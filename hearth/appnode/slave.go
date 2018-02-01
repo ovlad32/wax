@@ -1,19 +1,6 @@
 package appnode
 
-import (
-	"fmt"
-	pb "github.com/ovlad32/wax/hearth/grpcservice"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-	"io/ioutil"
-	"net"
-	"os"
-	"os/signal"
-	"path"
-	"time"
-)
-
+/*
 func (node *ApplicationNodeType) StartSlaveNode(masterHost, masterPort, nodeIDDir string) (err error) {
 	xContext := context.Background()
 	logger := node.config.Logger
@@ -256,3 +243,4 @@ func (s dataManagerServiceType) CategorySplitCollect(
 	response.SizeWritten = uint64(written)
 	return
 }
+*/

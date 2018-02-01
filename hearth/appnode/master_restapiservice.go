@@ -14,7 +14,7 @@ func (node *ApplicationNodeType) initRestApiRouting() {
 	r.HandleFunc("/table/categorysplit",rest.CategorySplitHandler).Methods("POST")
 
 	go func () {
-		defer node.wg.Done()
+		//defer node.wg.Done()
 		address := fmt.Sprintf(":%d",node.config.RestPort)
 		srv := &http.Server{
 			Handler: r,

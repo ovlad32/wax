@@ -9,41 +9,28 @@ import (
 	"github.com/ovlad32/wax/hearth/handling"
 	"strings"
 	"github.com/ovlad32/wax/hearth/repository"
-	"github.com/ovlad32/wax/hearth/handling/nullable"
 	"runtime"
 	"time"
 	"github.com/ovlad32/wax/hearth/misc"
-	"io"
 )
 
-
-type WriterCloserFactoryInterface interface {
-	OpenStream(int64, int64) (io.WriteCloser, error)
+type channel interface{}
+type batchConsumer interface {
+	CreateChannel(int64,int64) (channel, error)
+	Transfer(channel channel, data []byte) (err error)
+	CloseChannel(c channel) (err error)
 }
 
 type ConfigType struct {
 	DumpReaderConfig *dump.DumperConfigType
-	StreamFactory WriterCloserFactoryInterface
-	log handling.Logger
+	Log handling.Logger
 }
-
-const (
-	dataSeparatorByte byte = 0x1F
-	initialBufferSize int = 4*1024
-)
-
-
-
 
 
 func validateCategorySplitConfig(cfg *ConfigType) (err error) {
 	if cfg == nil {
 		err = fmt.Errorf("config is not initialized")
 		return
-	}
-
-	if cfg.StreamFactory == nil  {
-		err = fmt.Errorf("config.StreamFactory is not initialized")
 	}
 	return
 }
@@ -101,20 +88,23 @@ func (c rowCategoryData) Equal(data [][]byte) bool{
 
 
 
-func (c rowCategoryData) String() (result string){
+func (c rowCategoryData) String(separator... byte) (result string){
 	chunks:= make([]string,len(c))
-	for index := range(c) {
+	for index := range c {
 		chunks[index] = string(c[index])
 	}
 
+	if len(separator) == 0 {
+		separator = append(separator, 31)
+	}
 	return strings.Join(
 		chunks,
-		string([]byte{dataSeparatorByte}),
-		)
+		string(separator),
+	)
 }
 
 
-
+/*
 type splitDumpFileType struct{
 	//config *CategorySplitConfigType
 	outputStream io.WriteCloser
@@ -182,7 +172,7 @@ func (b *splitDumpFileType) Close() (err error){
 
 
 
-/*
+
 func (b *splitDumpFileType) FlushToTempFile() (err error) {
 	tableDirectory := strconv.FormatInt(b.CategorySplitData.CategorySplit.Table.Id.Value(),10)
 	splitSessionDirectory := strconv.FormatInt(b.CategorySplitRowData.CategorySplit.Id.Value(),10)
@@ -229,9 +219,14 @@ func (b *splitDumpFileType) FlushToTempFile() (err error) {
 */
 
 
-func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile string, categoryColumnListInterface dto.ColumnListInterface) (err error){
+func (splitter CategorySplitterType) SplitFile(ctx context.Context,
+	pathToFile string,
+	categoryColumnListInterface dto.ColumnListInterface,
+	consumer batchConsumer,
+		) (err error){
 	var sourceTable *dto.TableInfoType
-	counter := make(map[string]*splitDumpFileType)
+	counter := make(map[string]*sliceWriterType)
+
 	closeAll := func() {
 		for key, closer := range counter {
 			if closer != nil {
@@ -240,7 +235,6 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 			delete(counter,key)
 		}
 	}
-	defer closeAll()
 
 	if categoryColumnListInterface == nil {
 		err = fmt.Errorf("parameter 'categoryColumnList' is not defined")
@@ -294,7 +288,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 
 	timer := time.NewTicker(time.Second)
 
-	var currentDumpWriter *splitDumpFileType
+	var currentDumpWriter *sliceWriterType
 	processRowContent := func(
 		ctx context.Context,
 		config *dump.DumperConfigType,
@@ -346,14 +340,16 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 					err =fmt.Errorf("could not persist CategorySplitDataType:%v",err)
 					return err
 				}
-				currentDumpWriter,err = newSplitFileDump(
-					sourceTable,
-					rowData,
+
+				currentDumpWriter,err = newSliceWriter(
+					consumer,
+					sourceTable.Id.Value(),
+					rowData.Id.Value(),
 				)
 
 
 
-				currentDumpWriter.outputStream, err =
+				/*currentDumpWriter.outputStream, err =
 					splitter.config.StreamFactory.OpenStream(
 						sourceTable.Id.Value(),
 						rowData.Id.Value(),
@@ -365,7 +361,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 					err =fmt.Errorf("could not create new slice TableInfo :%v",err)
 					return err
 				}
-
+	*/
 
 				counter[key] = currentDumpWriter
 			}
@@ -400,6 +396,8 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 
 	_ = linesRead
 
+	closeAll()
+
 	if err != nil {
 //		tracelog.Errorf(err, packageName, funcName, "Error while reading table %v in line #%v ", targetTable, linesRead)
 		return
@@ -408,23 +406,3 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context, pathToFile s
 	}
 	return
 }
-
-type FlushDumpType struct {
-	inputStream io.ReadCloser
-	buffer *bytes.Buffer
-	sourceTable *dto.TableInfoType
-	sliceTable *dto.TableInfoType
-}
-
-func (flusher *FlushDumpType) Reader (ctx context.Context) (err error) {
-	for {
-		select {
-			case _ = <-ctx.Done():
-				return
-
-		}
-	}
-
-
-}
-

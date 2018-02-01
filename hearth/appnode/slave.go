@@ -73,6 +73,7 @@ func (node *ApplicationNodeType) StartSlaveNode(masterHost, masterPort, nodeIDDi
 			Status: "Init",
 		},
 	)
+
 	if err != nil {
 		logger.Fatal(err)
 		return err
@@ -227,6 +228,9 @@ func (s dataManagerServiceType) CategorySplitCollect(
 	err error,
 ) {
 	response = new(pb.CategorySplitResponse)
+	request.
+
+
 	fileName := path.Join(s.categorySlicePath, request.RelativeStoringFile)
 	fout, err := os.Create(fileName)
 	if err != nil {

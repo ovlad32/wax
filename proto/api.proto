@@ -34,19 +34,18 @@ message HeartBeatResponse {
 }
 
 
-service dataManager {
+service DataManager {
  rpc CategorySplitCollect(CategorySplitRequest) returns(CategorySplitResponse){}
 }
 
 message CategorySplitRequest {
- string relativeStoringFile = 1;
- uint64 size = 2;
- bytes data = 3;
+ int64 sourceTableInfoId = 1;
+ int64 categorySplitId = 2;
+ bytes stream dump = 3; 
 }
 
 message CategorySplitResponse {
- uint64 sizeWritten = 1;
- string errorMessage =2;
+ int64 id = 1;
 }
 
 

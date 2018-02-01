@@ -82,6 +82,7 @@ func main() {
 	if *applicationRole == "" || *applicationRole == "test" {
 		test1()
 	} else if *applicationRole == "master" {
+		//-role master
 		node, err := appnode.NewApplicationNode(
 			&appnode.ApplicationNodeConfigType{
 				Logger:                config.Logger,
@@ -99,6 +100,7 @@ func main() {
 
 
 	} else if *applicationRole == "slave" {
+		//-role slave -nodeIdDir=nodeId1
 	//	node.StartSlaveNode(*masterNodeHost, *masterNodePort, *nodeIdDirectory)
 		node, err := appnode.NewApplicationNode(
 			&appnode.ApplicationNodeConfigType{

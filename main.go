@@ -86,7 +86,7 @@ func main() {
 		node, err := appnode.NewApplicationNode(
 			&appnode.ApplicationNodeConfigType{
 				Logger:                config.Logger,
-				GrpcPort:              9100,
+				//GrpcPort:              9100,
 				RestPort:              9200,
 				NatsUrl:nats.DefaultURL,
 				Master:true,
@@ -95,7 +95,13 @@ func main() {
 		if err != nil {
 			stdlog.Fatal(err)
 		}
-		node.Start()
+		if err = node.ConnectToNats(); err!=nil {
+			logrus.Fatal(err.Error())
+		}
+		if err = node.MakeMasterCommandSubscription(); err!=nil {
+			logrus.Fatal(err.Error())
+		}
+
 		runtime.Goexit()
 
 
@@ -105,7 +111,7 @@ func main() {
 		node, err := appnode.NewApplicationNode(
 			&appnode.ApplicationNodeConfigType{
 				Logger:                config.Logger,
-				GrpcPort:              9100,
+				///GrpcPort:              9100,
 				RestPort:              9201,
 				NatsUrl:nats.DefaultURL,
 				Master:false,
@@ -115,7 +121,12 @@ func main() {
 		if err != nil {
 			stdlog.Fatal(err)
 		}
-		node.Start()
+		if err = node.ConnectToNats(); err!=nil {
+			logrus.Fatal(err.Error())
+		}
+		if err = node.MakeSlaveCommandSubscription(); err!=nil {
+			logrus.Fatal(err.Error())
+		}
 		runtime.Goexit()
 	} else {
 		stdlog.Fatalf("parameter role '%v' is not recognized", *applicationRole)

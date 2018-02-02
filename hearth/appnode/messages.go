@@ -3,11 +3,11 @@ package appnode
 
 
 type ParishRequestType struct {
-	SlaveNodeName string
-	CommandSubjet string
+	SlaveNodeName NodeNameType
+	CommandSubject string
 }
 
 type ParishResponseType struct {
-	Registered bool
+	ReConnect bool
 	Err error
 }

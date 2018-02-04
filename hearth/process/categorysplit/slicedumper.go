@@ -21,6 +21,13 @@ func (d dumper) EncodeResponse(resp *dumperResponse) (data[]byte,err error) {
 return
 
 }
+
+type ChannelMessageType struct {
+
+	Written int
+	Err error
+}
+
 type dumperResponse struct{
 	written int
 	err error

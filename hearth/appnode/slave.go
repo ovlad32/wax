@@ -1,5 +1,113 @@
 package appnode
 
+import (
+	"os"
+	"github.com/nats-io/go-nats"
+	"github.com/pkg/errors"
+)
+
+func (node *ApplicationNodeType) MakeSlaveCommandSubscription() (err error) {
+	resp := &ParishResponseType{}
+	err = node.enc.Request(
+		parishSubjectName,
+		ParishRequestType{
+			SlaveNodeName:  node.config.NodeName,
+			CommandSubject: node.NodeCommandSubject(),
+		},
+		resp,
+		nats.DefaultTimeout,
+	)
+	if err != nil {
+		err = errors.Wrapf(err, "could not register slave %v command subject")
+		node.config.Logger.Error(err)
+		return
+	}
+	err = node.enc.Flush()
+	if err != nil {
+		err = errors.Wrapf(err, "could not flush registration request")
+		node.config.Logger.Error(err)
+		return
+	}
+
+	if err = node.enc.LastError(); err != nil {
+		err = errors.Wrap(err, "error given via NATS while making slave registration command subscription")
+		node.config.Logger.Error(err)
+		return
+	}
+
+	node.config.Logger.Info("Slave %v registration has been done")
+
+	if resp.ReConnect {
+		//Todo: clean
+	}
+
+	node.commandSubscription, err = node.enc.Subscribe(
+		node.NodeCommandSubject(),
+		node.SlaveCommandSubscriptionFunc(),
+	)
+	var nodeName = string(node.config.NodeName)
+	if err != nil {
+		err = errors.Wrapf(err, "could not subscribe slave %v command subject", nodeName)
+		node.config.Logger.Error(err)
+		return
+	}
+
+	err = node.enc.Flush()
+	if err != nil {
+		err = errors.Wrapf(err, "could not flush slave %v command subscription", nodeName)
+		node.config.Logger.Error(err)
+		return
+	}
+
+	if err = node.enc.LastError(); err != nil {
+		err = errors.Wrapf(err, "error given via NATS while slave %v command subscribing", node)
+		node.config.Logger.Error(err)
+		return
+	}
+	node.config.Logger.Info("Slave %v command subscription has been done")
+	return
+}
+
+
+func (node *ApplicationNodeType) SlaveCommandSubscriptionFunc() func(string, string, interface{}) {
+	return func(subj, reply string, msg interface{}) {
+		switch mval := msg.(type) {
+		case CommandMessageType:
+			switch mval.Command {
+			case PARISH_CLOSE:
+				err := node.CloseRegularWorker(subj,reply,&mval)
+				if err != nil {
+					panic(err.Error())
+				}
+				node.enc.Close()
+				os.Exit(0)
+			case CATEGORY_SPLIT_OPEN:
+				worker, err := newCategorySplitWorker(
+					node.enc,
+					subj, reply, &mval,
+				)
+				if err != nil {
+					panic(err.Error())
+				}
+				node.AppendWorker(worker)
+			case CATEGORY_SPLIT_CLOSE:
+				err := node.CloseRegularWorker(subj,reply,&mval)
+				if err != nil {
+					panic(err.Error())
+				}
+			default:
+				panic(mval.Command)
+			}
+		default:
+			_ = mval
+			panic("not implemented yet")
+		}
+	}
+}
+
+
+
+
 /*
 func (node *ApplicationNodeType) StartSlaveNode(masterHost, masterPort, nodeIDDir string) (err error) {
 	xContext := context.Background()

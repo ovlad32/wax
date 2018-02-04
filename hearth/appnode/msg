@@ -1,0 +1,12 @@
+
+ Start:
+ Master creates PerishSubject
+
+ Slave makes commandSubject and tells about it to Master.PerishSubject
+ Slave creates commandSubject
+
+
+ Finish:
+ Master tells to Slaves "Close"
+ Unsubscribes Perish
+ Disconnects

@@ -5,8 +5,15 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"sync"
+	"fmt"
+	"runtime"
 )
 
+var currentInstance *applicationNodeType
+var currentMaster *masterApplicationNodeType
+var currentSlave *slaveApplicationNodeType
+
+var ciMux sync.Mutex
 
 type NodeNameType string
 type CommandType string
@@ -27,34 +34,35 @@ func (c CommandType) String() string {
 	return string(c)
 }
 
-type SlaveNodeInfoType struct {
-	CommandSubject            string
-	MasterCommandSubscription *nats.Subscription
-}
 
 type ApplicationNodeConfigType struct {
-	RestPort int
-	Logger   *logrus.Logger
-	//
 	NatsUrl  string
-	Master   bool
+	Logger   *logrus.Logger
+	IsMaster   bool
 	NodeName NodeNameType
+	MasterRestPort int
 }
 
 
 
-type ApplicationNodeType struct {
+type applicationNodeType struct {
 	config   ApplicationNodeConfigType
-	RestPort int
 
 	encodedConn *nats.EncodedConn
 
 	workerMux            sync.RWMutex
-	slaveCommandSubjects []string
 	commandSubscription  *nats.Subscription
 	workers              map[string]WorkerInterface
 	//
 	logger *logrus.Logger
+}
+type slaveApplicationNodeType struct {
+	*applicationNodeType
+}
+
+type masterApplicationNodeType struct{
+	*applicationNodeType
+	slaveCommandSubjects []string
 }
 
 /*
@@ -65,7 +73,7 @@ return err
 err = errors.Wrapf(err, "could not flush published reply of closing  %v worker", id)
 reply of closing  %v worker", id)
 
-*/
+
 func (node *ApplicationNodeType) publishReplay(subj string, msg *CommandMessageType) (err error) {
 	err = node.encodedConn.Publish(subj, msg)
 	if err != nil {
@@ -76,7 +84,7 @@ func (node *ApplicationNodeType) publishReplay(subj string, msg *CommandMessageT
 	return
 }
 
-/*
+
 err = node.encodedConn.Flush()
 	if err != nil {
 		err = errors.Wrap(err, "could not flush published reply")
@@ -89,25 +97,71 @@ err = node.encodedConn.Flush()
 		return err
 	}
 	return*/
-func NewApplicationNode(cfg *ApplicationNodeConfigType) (result *ApplicationNodeType, err error) {
+func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
+	if currentInstance != nil {
+		err = errors.New("current application node has already been initialized")
+		cfg.Logger.Fatal(err)
+		return
+	}
 
-	result = &ApplicationNodeType{
+
+	instance := &applicationNodeType{
 		config: *cfg,
 	}
-	if result.config.Master {
-		result.config.NodeName = "MASTER"
+	instance.logger = cfg.Logger
+
+	var master *masterApplicationNodeType
+	var slave *slaveApplicationNodeType
+	//result.hostName, err = os.Hostname()
+	if err != nil {
+		err = fmt.Errorf("could not get local host name: %v",err)
+		return
+	}
+
+
+	if cfg.IsMaster {
+		master = &masterApplicationNodeType{
+			applicationNodeType:instance ,
+		}
+		master.config.NodeName = "MASTER"
 	} else {
-		if result.config.NodeName == "" {
+		if cfg.NodeName == "" {
 			panic("provide node name!")
 		}
+		slave = &slaveApplicationNodeType{
+			applicationNodeType:instance ,
+		}
 	}
-	result.logger = cfg.Logger
 
-	/*	result.hostName, err = os.Hostname()
-		if err != nil {
-			err = fmt.Errorf("could not get local host name: %v",err)
-			return nil,err
-		}*/
+
+	ciMux.Lock()
+	if currentInstance != nil {
+		ciMux.Unlock()
+		err = errors.New("current application node has already been initialized")
+		cfg.Logger.Fatal(err)
+		return
+	} else {
+		if cfg.IsMaster{
+			currentMaster = master
+			currentInstance = master.applicationNodeType
+			ciMux.Unlock()
+		} else {
+			currentSlave = slave
+			currentInstance = slave.applicationNodeType
+			ciMux.Unlock()
+		}
+	}
+
+	if currentSlave != nil {
+		err = currentSlave.startServices()
+	} else if currentMaster != nil {
+		err = currentMaster.startServices()
+	}
+	if  err != nil {
+
+	}
+
+	runtime.Goexit()
 
 	return
 }
@@ -115,42 +169,34 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (result *ApplicationNode
 
 
 
-func (node *ApplicationNodeType) ConnectToNats() (err error) {
+func (node *applicationNodeType) connectToNATS() (err error) {
 	conn, err := nats.Connect(
 		node.config.NatsUrl,
 		nats.Name(string(node.config.NodeName)),
 	)
 	if err != nil {
-		err = errors.Wrapf(err, "could not connect to NATS at %v", node.config.NatsUrl)
-		return err
+		err = errors.Wrapf(err, "could not connect to NATS at '%v'", node.config.NatsUrl)
+		node.logger.Fatal(err)
+		return
 	}
 	node.encodedConn, err = nats.NewEncodedConn(conn, nats.GOB_ENCODER)
 	if err != nil {
 		err = errors.Wrapf(err, "could not create encoder for NATS")
 		logrus.Fatal(err)
-		return err
+		return
 	}
-	if node.config.Master {
-		node.logger.Info(
-			"Master node connected to NATS",
-		)
-	} else {
-		node.logger.Info(
-			"Slave %v connected to NATS", node.config.NodeName,
-		)
-	}
+	node.logger.Info("Node connected to NATS")
 
 	return
 }
 
 
-func (node *ApplicationNodeType) Config() (result ApplicationNodeConfigType) {
-	return node.config
-}
 
-func (node *ApplicationNodeType) NodeId() string {
+func (node *applicationNodeType) NodeId() string {
 	return string(node.config.NodeName)
 }
+
+
 /*
 func (node ApplicationNodeType) OpenChannel(tableId, splitId int64) {
 	num := int(math.Remainder(float64(splitId), float64(len(node.slaves))))

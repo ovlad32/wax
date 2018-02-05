@@ -41,7 +41,7 @@ func (worker basicWorker) Id() string {
 
 
 
-func (node *ApplicationNodeType) AppendWorker(a WorkerInterface) {
+func (node *applicationNodeType) AppendWorker(a WorkerInterface) {
 	if node.workers == nil {
 		node.workerMux.Lock()
 		if node.workers == nil {
@@ -55,7 +55,7 @@ func (node *ApplicationNodeType) AppendWorker(a WorkerInterface) {
 		node.workerMux.Unlock()
 	}
 }
-func (node *ApplicationNodeType) FindWorkerById(id string) WorkerInterface {
+func (node *applicationNodeType) FindWorkerById(id string) WorkerInterface {
 	if node.workers == nil {
 		return nil
 	}
@@ -68,13 +68,13 @@ func (node *ApplicationNodeType) FindWorkerById(id string) WorkerInterface {
 	return nil
 }
 
-func (node *ApplicationNodeType) RemoveWorkerById(id string) {
+func (node *applicationNodeType) RemoveWorkerById(id string) {
 	node.workerMux.Lock()
 	delete(node.workers, id)
 	node.workerMux.Unlock()
 }
 
-func (node *ApplicationNodeType) CloseRegularWorker(
+func (node *applicationNodeType) CloseRegularWorker(
 	replySubject string,
 	message *CommandMessageType,
 	replyCommand CommandType) (err error) {

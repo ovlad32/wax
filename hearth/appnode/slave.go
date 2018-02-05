@@ -2,137 +2,37 @@ package appnode
 
 import (
 	"os"
-	"github.com/nats-io/go-nats"
 	"github.com/pkg/errors"
-	"fmt"
+	"os/signal"
 )
 
 
-func (node ApplicationNodeType) SlaveCommandSubject() string {
-	return fmt.Sprintf("COMMAND/%v", node.config.NodeName)
-}
-const (
-	slaveCommandSubjectParam  CommandMessageParamType = "slaveCommandSubject"
-	ResubscribedParam CommandMessageParamType = "resubscribed"
-)
+func (node *slaveApplicationNodeType) startServices() (err error) {
 
 
+	err = node.initNatsService()
 
-func (node *ApplicationNodeType) MakeSlaveCommandSubscription() (err error) {
-
-	slaveSubject := node.SlaveCommandSubject()
-	node.commandSubscription, err = node.encodedConn.Subscribe(
-		slaveSubject,
-		node.SlaveCommandSubscriptionFunc(),
-	)
 	if err != nil {
-		err = errors.Wrapf(err,"could not create slave command subject subscription for node id  %v",node.NodeId())
-		node.logger.Error(err)
-		return
+		err = errors.Wrapf(err,"could not start NATS service")
+		return err
 	}
 
 
 
-	if func() (err error) {
+	osSignal := make(chan os.Signal,1)
+	signal.Notify(osSignal, os.Interrupt,os.Kill)
+	go func() {
+		_ = <-osSignal
 
-		err = node.encodedConn.Flush()
-		if err != nil {
-			err = errors.Wrapf(err, "could not flush slave command subject subscription for node id", node.NodeId())
+		//err = node.closeAllCommandSubscription()
+		if err !=nil {
+			err = errors.Wrapf(err,"could not close command subscriptions")
 			node.logger.Error(err)
-			return
 		}
-
-		if err = node.encodedConn.LastError(); err != nil {
-			err = errors.Wrapf(err, "error given via NATS while propagating slave command subject subscription for node id", node)
-			node.logger.Error(err)
-			return
-		}
-
-
-
-		response := new(CommandMessageType)
-		err = node.encodedConn.Request(
-			MASTER_COMMAND_SUBJECT,
-			&CommandMessageType{
-				Command: PARISH_OPEN,
-				Params: map[CommandMessageParamType]interface{}{
-					slaveCommandSubjectParam: node.commandSubscription.Subject,
-				},
-			},
-			response,
-			nats.DefaultTimeout,
-		)
-
-		if err != nil {
-			err = errors.Wrapf(err, "could not inform master about slave command subject creation of NodeID %v ", node.NodeId())
-			node.logger.Error(err)
-			return
-		}
-
-		err = node.encodedConn.Flush()
-		if err != nil {
-			err = errors.Wrapf(err, "could not flush registration request")
-			node.logger.Error(err)
-			return
-		}
-
-		if err = node.encodedConn.LastError(); err != nil {
-			err = errors.Wrap(err, "error given via NATS while making slave registration command subscription")
-			node.logger.Error(err)
-			return
-		}
-
-		node.logger.Info("Slave %v registration has been done")
-		//if response.Command == PARISH_OPENED
-		//TODO:  PARISH_OPENED
-		if response.ParamBool(ResubscribedParam,false)  {
-			node.logger.Warn("slave node command subscription had been created before...")
-			//Todo: clean
-		}
-
-		return
-	} () != nil {
-		node.commandSubscription.Unsubscribe()
-		node.commandSubscription = nil
-	}
-	node.logger.Info("Slave %v command subscription has been done")
+		node.logger.Warn("Master node shut down")
+		os.Exit(0)
+	}()
 	return
-}
-
-
-func (node *ApplicationNodeType) SlaveCommandSubscriptionFunc() func(string, string, *CommandMessageType) {
-	return func(subj, reply string, msg *CommandMessageType) {
-			switch msg.Command {
-			case PARISH_CLOSE:
-				/*err := node.CloseRegularWorker(
-					reply,
-					msg,
-					PARISH_CLOSED,
-				)
-				if err != nil {
-					panic(err.Error())
-				}*/
-				node.encodedConn.Close()
-				os.Exit(0)
-			case CATEGORY_SPLIT_OPEN:
-				worker, err := newCategorySplitWorker(
-					node.encodedConn,
-					reply, msg,
-					node.logger,
-				)
-				if err != nil {
-					panic(err.Error())
-				}
-				node.AppendWorker(worker)
-			case CATEGORY_SPLIT_CLOSE:
-				err := node.CloseRegularWorker(reply,msg,CATEGORY_SPLIT_CLOSED)
-				if err != nil {
-					panic(err.Error())
-				}
-			default:
-				panic(msg.Command)
-			}
-	}
 }
 
 

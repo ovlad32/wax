@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/goinggo/tracelog"
+	"github.com/nats-io/go-nats"
 	"github.com/ovlad32/wax/hearth"
 	"github.com/ovlad32/wax/hearth/appnode"
 	"github.com/ovlad32/wax/hearth/dto"
@@ -16,12 +17,11 @@ import (
 	"github.com/ovlad32/wax/hearth/process/sort"
 	"github.com/ovlad32/wax/hearth/repository"
 	"github.com/sirupsen/logrus"
+	stdlog "log"
 	"math"
 	"os"
 	"runtime"
-	stdlog "log"
 	"runtime/pprof"
-	"github.com/nats-io/go-nats"
 )
 
 var packageName = "main"
@@ -78,56 +78,34 @@ func main() {
 		stdlog.Fatal(err)
 	}
 
-
 	if *applicationRole == "" || *applicationRole == "test" {
 		test1()
 	} else if *applicationRole == "master" {
 		//-role master
-		node, err := appnode.NewApplicationNode(
+		err := appnode.NewApplicationNode(
 			&appnode.ApplicationNodeConfigType{
-				Logger:                config.Logger,
-				//GrpcPort:              9100,
-				RestPort:              9200,
-				NatsUrl:nats.DefaultURL,
-				Master:true,
+				Logger:         config.Logger,
+				NatsUrl:        nats.DefaultURL,
+				IsMaster:       true,
+				MasterRestPort: 9200,
 			},
 		)
 		if err != nil {
 			stdlog.Fatal(err)
 		}
-		if err = node.ConnectToNats(); err!=nil {
-			logrus.Fatal(err.Error())
-		}
-		if err = node.MakeMasterCommandSubscription(); err!=nil {
-			logrus.Fatal(err.Error())
-		}
-
-		runtime.Goexit()
-
-
 	} else if *applicationRole == "slave" {
 		//-role slave -nodeIdDir=nodeId1
-	//	node.StartSlaveNode(*masterNodeHost, *masterNodePort, *nodeIdDirectory)
-		node, err := appnode.NewApplicationNode(
+		err := appnode.NewApplicationNode(
 			&appnode.ApplicationNodeConfigType{
-				Logger:                config.Logger,
-				///GrpcPort:              9100,
-				RestPort:              9201,
-				NatsUrl:nats.DefaultURL,
-				Master:false,
-				NodeName:"slave1",
+				Logger:   config.Logger,
+				NatsUrl:  nats.DefaultURL,
+				NodeName: "slave1",
 			},
 		)
 		if err != nil {
 			stdlog.Fatal(err)
 		}
-		if err = node.ConnectToNats(); err!=nil {
-			logrus.Fatal(err.Error())
-		}
-		if err = node.MakeSlaveCommandSubscription(); err!=nil {
-			logrus.Fatal(err.Error())
-		}
-		runtime.Goexit()
+
 	} else {
 		stdlog.Fatalf("parameter role '%v' is not recognized", *applicationRole)
 	}
@@ -163,7 +141,7 @@ func test1() {
 			&index.BitsetIndexConfigType{
 				DumperConfig: hearth.AdaptDataReaderConfig(config),
 				BitsetPath:   config.BitsetPath,
-				Log: l,
+				Log:          l,
 			},
 		)
 		err = indexer.BuildBitsets(
@@ -179,12 +157,12 @@ func test1() {
 	}
 	if false {
 		splitter, err := categorysplit.NewCategorySplitter(&categorysplit.ConfigType{
-			DumpReaderConfig:     hearth.AdaptDataReaderConfig(config),
+			DumpReaderConfig: hearth.AdaptDataReaderConfig(config),
 			//PathToSliceDirectory: config.BitsetPath,
 			//MaxRowCountPerFile:   1000000,
 
 		})
-		_=splitter
+		_ = splitter
 		if err != nil {
 			err = fmt.Errorf("could not do category split for table %v: %v", table, err)
 			stdlog.Fatal(err)

@@ -23,10 +23,10 @@ func (node *ApplicationNodeType) initRestApiRouting() {
 			WriteTimeout: 15 * time.Second,
 			ReadTimeout:  15 * time.Second,
 		}
-		node.config.Logger.Infof("REST API server has started at %v....", address)
+		node.logger.Infof("REST API server has started at %v....", address)
 		err := srv.ListenAndServe()
 		if err == nil {
-			node.config.Logger.Fatalf("REST API server broke at %v: %v", address,err)
+			node.logger.Fatalf("REST API server broke at %v: %v", address,err)
 		}
 	}()
 

@@ -2,16 +2,20 @@ package appnode
 
 import (
 	"fmt"
-	nats "github.com/nats-io/go-nats"
+	"github.com/nats-io/go-nats"
+	"github.com/sirupsen/logrus"
+	"github.com/pkg/errors"
 )
 
 type categorySplitWorker struct {
-	//NATS section
+	basicWorker
 	enc *nats.EncodedConn
-	sub *nats.Subscription
-	id string
+	logger *logrus.Logger
 }
-
+const (
+	tableInfoIdParam CommandMessageParamType = "tableInfoId"
+	splitIdParam CommandMessageParamType = "splitId"
+)
 
 func (agent *categorySplitWorker) categorySplitSubscriptionFunc() func(msg nats.Msg) {
  	return func (msg nats.Msg) {
@@ -21,82 +25,72 @@ func (agent *categorySplitWorker) categorySplitSubscriptionFunc() func(msg nats.
 
 func newCategorySplitWorker(
 	enc *nats.EncodedConn,
-	sourceSubject, replySubject string,
+	replySubject string,
 	message *CommandMessageType,
+	logger *logrus.Logger,
 ) (result *categorySplitWorker, err error) {
 
 	worker := &categorySplitWorker{
-		enc:enc,
+			enc: enc,
+			logger:logger,
 	}
 
 
-	tableInfoId :=  message.ParmInt64("tableInfoId",-1)
-	splitId :=  message.ParmInt64("splitId",-1);
+	tableInfoId :=  message.ParamInt64(tableInfoIdParam,-1)
+	splitId :=  message.ParamInt64(splitIdParam,-1)
 	if tableInfoId == -1 {
-		err = fmt.Errorf("tableInfoId == -1")
+		err = fmt.Errorf("%v == -1",tableInfoIdParam)
 		return
 	}
 	if splitId == -1 {
-		err = fmt.Errorf("splitId == -1")
+		err = fmt.Errorf("%v == -1",splitIdParam)
+		logger.Error(err)
 		return
 	}
 
 	subjectName := fmt.Sprintf("SPLIT/%v/%v",tableInfoId,splitId)
+	worker.subscriptions = make([]*nats.Subscription,1)
 
-	worker.sub, err = worker.enc.QueueSubscribe(
-		subjectName,
+	worker.subscriptions[0], err = enc.Subscribe(
 		subjectName,
 		worker.categorySplitSubscriptionFunc(),
 	)
 	if err != nil {
+		logger.Error(err)
 		return
 	}
-	err = worker.enc.Flush()
-	if err != nil {
+	if func() (err error) {
+		err = enc.Flush()
+		if err != nil {
+			logger.Error(err)
+			return
+		}
+
+		if err = enc.LastError(); err != nil {
+			logger.Error(err)
+			return
+		}
+
+		err = enc.Publish(replySubject,
+			&CommandMessageType{
+				Command: CATEGORY_SPLIT_OPENED,
+				Params: map[CommandMessageParamType]interface{}{
+					workerSubjectParam: worker.subscriptions[0].Subject,
+				},
+			})
+		if err != nil {
+			err = errors.Errorf("could not reply %v: %v ", message.Command, err)
+			logger.Error(err)
+			return
+		}
 		return
+	} != nil {
+		worker.subscriptions[0].Unsubscribe()
+		worker.subscriptions = nil
 	}
-
-	if err = worker.enc.LastError(); err != nil {
-		return
-	}
-
-
-	err = worker.enc.Publish(replySubject,
-		&CommandMessageType{
-			Command:CATEGORY_SPLIT_OPENED,
-			Parm:map[string]interface{}{
-				"workerSubject":worker.sub.Subject,
-			},
-		})
-	if err != nil {
-		return
-	}
-
-	err = worker.enc.Flush()
-	if err != nil {
-		return
-	}
-
-	if err = worker.enc.LastError(); err != nil {
-		return
-	}
-
 	worker.id = subjectName
 	result = worker
 	return
-}
-
-func (agent *categorySplitWorker) Close() (err error) {
-	if agent.sub != nil {
-		err = agent.sub.Unsubscribe()
-	}
-	panic("close agent")
-	return
-}
-
-
-func (a categorySplitWorker) Id() string {
-	return a.id
 }
 
 

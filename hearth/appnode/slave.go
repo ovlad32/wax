@@ -4,104 +4,134 @@ import (
 	"os"
 	"github.com/nats-io/go-nats"
 	"github.com/pkg/errors"
+	"fmt"
 )
 
+
+func (node ApplicationNodeType) SlaveCommandSubject() string {
+	return fmt.Sprintf("COMMAND/%v", node.config.NodeName)
+}
+const (
+	slaveCommandSubjectParam  CommandMessageParamType = "slaveCommandSubject"
+	ResubscribedParam CommandMessageParamType = "resubscribed"
+)
+
+
+
 func (node *ApplicationNodeType) MakeSlaveCommandSubscription() (err error) {
-	resp := &ParishResponseType{}
-	err = node.enc.Request(
-		parishSubjectName,
-		ParishRequestType{
-			SlaveNodeName:  node.config.NodeName,
-			CommandSubject: node.NodeCommandSubject(),
-		},
-		resp,
-		nats.DefaultTimeout,
-	)
-	if err != nil {
-		err = errors.Wrapf(err, "could not register slave %v command subject")
-		node.config.Logger.Error(err)
-		return
-	}
-	err = node.enc.Flush()
-	if err != nil {
-		err = errors.Wrapf(err, "could not flush registration request")
-		node.config.Logger.Error(err)
-		return
-	}
 
-	if err = node.enc.LastError(); err != nil {
-		err = errors.Wrap(err, "error given via NATS while making slave registration command subscription")
-		node.config.Logger.Error(err)
-		return
-	}
-
-	node.config.Logger.Info("Slave %v registration has been done")
-
-	if resp.ReConnect {
-		//Todo: clean
-	}
-
-	node.commandSubscription, err = node.enc.Subscribe(
-		node.NodeCommandSubject(),
+	slaveSubject := node.SlaveCommandSubject()
+	node.commandSubscription, err = node.encodedConn.Subscribe(
+		slaveSubject,
 		node.SlaveCommandSubscriptionFunc(),
 	)
-	var nodeName = string(node.config.NodeName)
 	if err != nil {
-		err = errors.Wrapf(err, "could not subscribe slave %v command subject", nodeName)
-		node.config.Logger.Error(err)
+		err = errors.Wrapf(err,"could not create slave command subject subscription for node id  %v",node.NodeId())
+		node.logger.Error(err)
 		return
 	}
 
-	err = node.enc.Flush()
-	if err != nil {
-		err = errors.Wrapf(err, "could not flush slave %v command subscription", nodeName)
-		node.config.Logger.Error(err)
-		return
-	}
 
-	if err = node.enc.LastError(); err != nil {
-		err = errors.Wrapf(err, "error given via NATS while slave %v command subscribing", node)
-		node.config.Logger.Error(err)
+
+	if func() (err error) {
+
+		err = node.encodedConn.Flush()
+		if err != nil {
+			err = errors.Wrapf(err, "could not flush slave command subject subscription for node id", node.NodeId())
+			node.logger.Error(err)
+			return
+		}
+
+		if err = node.encodedConn.LastError(); err != nil {
+			err = errors.Wrapf(err, "error given via NATS while propagating slave command subject subscription for node id", node)
+			node.logger.Error(err)
+			return
+		}
+
+
+
+		response := new(CommandMessageType)
+		err = node.encodedConn.Request(
+			MASTER_COMMAND_SUBJECT,
+			&CommandMessageType{
+				Command: PARISH_OPEN,
+				Params: map[CommandMessageParamType]interface{}{
+					slaveCommandSubjectParam: node.commandSubscription.Subject,
+				},
+			},
+			response,
+			nats.DefaultTimeout,
+		)
+
+		if err != nil {
+			err = errors.Wrapf(err, "could not inform master about slave command subject creation of NodeID %v ", node.NodeId())
+			node.logger.Error(err)
+			return
+		}
+
+		err = node.encodedConn.Flush()
+		if err != nil {
+			err = errors.Wrapf(err, "could not flush registration request")
+			node.logger.Error(err)
+			return
+		}
+
+		if err = node.encodedConn.LastError(); err != nil {
+			err = errors.Wrap(err, "error given via NATS while making slave registration command subscription")
+			node.logger.Error(err)
+			return
+		}
+
+		node.logger.Info("Slave %v registration has been done")
+		//if response.Command == PARISH_OPENED
+		//TODO:  PARISH_OPENED
+		if response.ParamBool(ResubscribedParam,false)  {
+			node.logger.Warn("slave node command subscription had been created before...")
+			//Todo: clean
+		}
+
 		return
+	} () != nil {
+		node.commandSubscription.Unsubscribe()
+		node.commandSubscription = nil
 	}
-	node.config.Logger.Info("Slave %v command subscription has been done")
+	node.logger.Info("Slave %v command subscription has been done")
 	return
 }
 
 
-func (node *ApplicationNodeType) SlaveCommandSubscriptionFunc() func(string, string, interface{}) {
-	return func(subj, reply string, msg interface{}) {
-		switch mval := msg.(type) {
-		case CommandMessageType:
-			switch mval.Command {
+func (node *ApplicationNodeType) SlaveCommandSubscriptionFunc() func(string, string, *CommandMessageType) {
+	return func(subj, reply string, msg *CommandMessageType) {
+			switch msg.Command {
 			case PARISH_CLOSE:
-				err := node.CloseRegularWorker(subj,reply,&mval)
+				/*err := node.CloseRegularWorker(
+					reply,
+					msg,
+					PARISH_CLOSED,
+				)
 				if err != nil {
 					panic(err.Error())
-				}
-				node.enc.Close()
+				}*/
+				node.encodedConn.Close()
 				os.Exit(0)
 			case CATEGORY_SPLIT_OPEN:
 				worker, err := newCategorySplitWorker(
-					node.enc,
-					subj, reply, &mval,
+					node.encodedConn,
+					reply, msg,
+					node.logger,
 				)
 				if err != nil {
 					panic(err.Error())
 				}
 				node.AppendWorker(worker)
 			case CATEGORY_SPLIT_CLOSE:
-				err := node.CloseRegularWorker(subj,reply,&mval)
+				err := node.CloseRegularWorker(reply,msg,CATEGORY_SPLIT_CLOSED)
 				if err != nil {
 					panic(err.Error())
 				}
 			default:
-				panic(mval.Command)
+				panic(msg.Command)
 			}
-		default:
-			_ = mval
-			panic("not implemented yet")
-		}
 	}
 }
 
@@ -111,7 +141,7 @@ func (node *ApplicationNodeType) SlaveCommandSubscriptionFunc() func(string, str
 /*
 func (node *ApplicationNodeType) StartSlaveNode(masterHost, masterPort, nodeIDDir string) (err error) {
 	xContext := context.Background()
-	logger := node.config.Logger
+	logger := node.logger
 	var storedNodeId string
 	err = os.MkdirAll(nodeIDDir, 771)
 	if err != nil {
@@ -241,7 +271,7 @@ func (node *ApplicationNodeType) StartSlaveNode(masterHost, masterPort, nodeIDDi
 	srv := grpc.NewServer()
 
 	pb.RegisterDataManagerServer(srv, &dataManagerServiceType{
-		logger:            node.config.Logger,
+		logger:            node.logger,
 		categorySlicePath: ".",
 		//TODO:
 	})

@@ -2,7 +2,6 @@ package appnode
 
 import (
 	"fmt"
-	"sync"
 )
 
 type ParishRequestType struct {
@@ -15,39 +14,59 @@ type ParishResponseType struct {
 	Err error
 }
 
+type CommandMessageParamType string
+
+
+
 type CommandMessageType struct {
 	Command CommandType
-	Err error
-	Parm map[string]interface{}
-	mux sync.Mutex
+	///Err error
+	Params map[CommandMessageParamType]interface{}
+	//mux sync.Mutex
 }
 
 
-func (m CommandMessageType) ParmInt64(name string, defaultValue int64) int64 {
-	val,found := m.Parm[name]
+
+func (m CommandMessageType) ParamInt64(name CommandMessageParamType, defaultValue int64) int64 {
+	val,found := m.Params[name]
 	if !found {
 		return defaultValue
 	}
 
 	result,ok := val.(int64)
 	if !ok {
-		panic(fmt.Sprintf("could not get int64 value from parameter named %v at command %v",name,m.Command))
+		panic(fmt.Sprintf("could not get INT64 value from parameter named %v at command %v",name,m.Command))
 	}
 	return result
 }
 
-func (m CommandMessageType) ParmString(name string, defaultValue string) string {
-	val,found := m.Parm[name]
+func (m CommandMessageType) ParamString(name CommandMessageParamType, defaultValue string) string {
+	val,found := m.Params[name]
 	if !found {
 		return defaultValue
 	}
 
 	result,ok := val.(string)
 	if !ok {
-		panic(fmt.Sprintf("could not get string value from parameter named %v at command %v",name,m.Command))
+		panic(fmt.Sprintf("could not get STRING value from parameter named %v at command %v",name,m.Command))
 	}
 	return result
 }
+
+
+func (m CommandMessageType) ParamBool(name CommandMessageParamType, defaultValue bool) bool {
+	val,found := m.Params[name]
+	if !found {
+		return defaultValue
+	}
+
+	result,ok := val.(bool)
+	if !ok {
+		panic(fmt.Sprintf("could not get BOOL value from parameter named %v at command %v",name,m.Command))
+	}
+	return result
+}
+
 /*
 func (m *CommandMessageType) Parm(name string, value interface{}) {
 	if m.parm == nil {

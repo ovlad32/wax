@@ -15,6 +15,9 @@ type ParishResponseType struct {
 }
 
 type CommandMessageParamType string
+func (c CommandMessageParamType) String() string {
+	return string(c)
+}
 
 
 

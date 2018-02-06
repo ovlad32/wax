@@ -2,17 +2,39 @@ package appnode
 
 import (
 	"github.com/gorilla/mux"
-	"github.com/ovlad32/wax/hearth/rest"
 	"fmt"
 	"time"
 	"net/http"
 	"github.com/pkg/errors"
 )
+type handler func (http.ResponseWriter,*http.Request)
+
+func (node *masterApplicationNodeType) BitsetBuildingHandlerFunc() func (http.ResponseWriter,*http.Request)  {
+	return func (w http.ResponseWriter,r *http.Request) {
+		vars := mux.Vars(r)
+		_ = vars
+		//tableInfo := vars[tableInfoIdParam.String()]
+		return
+	}
+
+}
+
+func (node *masterApplicationNodeType) CategorySplitHandlerFunc() func (http.ResponseWriter,*http.Request)  {
+	return func (w http.ResponseWriter,r *http.Request) {
+		vars := mux.Vars(r)
+		_ = vars
+		//tableInfoId := vars[tableInfoIdParam.String()]
+		//tableInfoId := vars[tableInfoIdParam.String()]
+		return
+	}
+}
+
+
 
 func (node *masterApplicationNodeType) initRestApiRouting() (srv *http.Server, err error){
 	r := mux.NewRouter()
-	r.HandleFunc("/table/index",rest.BitsetBuildingHandler).Methods("POST")
-	r.HandleFunc("/table/categorysplit",rest.CategorySplitHandler).Methods("POST")
+	r.HandleFunc("/table/index",node.BitsetBuildingHandlerFunc()).Methods("POST")
+	r.HandleFunc("/table/categorysplit",node.CategorySplitHandlerFunc()).Methods("POST")
 
 	//defer node.wg.Done()
 	address := fmt.Sprintf(":%d",node.config.MasterRestPort)

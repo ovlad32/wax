@@ -8,6 +8,8 @@ import (
 	"github.com/ovlad32/wax/hearth/handling/nullable"
 	"context"
 	"strings"
+	"sync"
+	"github.com/pkg/errors"
 )
 
 var packageName string = "repository"
@@ -31,7 +33,8 @@ var (
 )
 
 var iDb *sql.DB
-
+var idbMux sync.Mutex
+var logger *logrus.Logger
 var currentDbType BEDBType = H2
 
 var iConfig *RepositoryConfigType
@@ -45,30 +48,49 @@ type RepositoryConfigType struct {
 	Logger       logrus.Logger
 }
 
-func InitRepository(conf *RepositoryConfigType) (idb *sql.DB, err error) {
-	func() {
-		idb, err = sql.Open(
-			"postgres",
-			fmt.Sprintf(
-				"user=%v password=%v dbname=%v host=%v port=%v timeout=10 sslmode=disable ",
-				conf.Login, conf.Password, conf.DatabaseName, conf.Host, conf.Port,
-			),
-		)
+func Init(conf *RepositoryConfigType) (idb *sql.DB, err error) {
+	idbMux.Lock()
+	if iDb == nil {
+		func() {
+			idb, err = sql.Open(
+				"postgres",
+				fmt.Sprintf(
+					"user=%v password=%v dbname=%v host=%v port=%v timeout=10 sslmode=disable ",
+					conf.Login, conf.Password, conf.DatabaseName, conf.Host, conf.Port,
+				),
+			)
 
-		if err != nil {
-			err = fmt.Errorf("could not connect to backend DB: %v", err)
-			return
-		}
-		iDb = idb
-	}()
+			if err != nil {
+				err = fmt.Errorf("could not connect to backend DB: %v", err)
+				return
+			}
+			iDb = idb
+			logger = &conf.Logger
+		}()
+	}
+	idbMux.Unlock()
 
 	if err != nil {
-		conf.Logger.Errorf("could not initialize backend DB Repository: %v",err)
+		err = errors.Wrapf(err,"could not initialize backend Repository DB")
+		conf.Logger.Error(err)
+	} else {
+		conf.Logger.Info("Connection to backend Repository DB established")
 	}
-
 	return
 }
-
+func Close() {
+	var err error
+	idbMux.Lock()
+	if iDb != nil {
+		err = iDb.Close()
+	}
+	idbMux.Unlock()
+	if err != nil {
+		err = errors.Wrapf(err,"error while closing connection to backend Repository DB")
+		logger.Error(err)
+	}
+	logger.Info("Connection to backend Repository DB closed")
+}
 /*
 func MakeWhereArgs() (result []interface{}){
 	return make([]interface{},0,1)

@@ -8,14 +8,20 @@ import (
 
 func (node *masterApplicationNodeType) initNatsService() (err error) {
 
-	err = node.connectToNATS()
-	if err != nil {
-		return err
-	}
-	err = node.makeCommandSubscription()
+	func() {
+		err = node.connectToNATS()
+
 		if err != nil {
-			return err
+			return
 		}
+		err = node.makeCommandSubscription()
+		if err != nil {
+			return
+		}
+	}()
+	if err != nil {
+		err = errors.Wrapf(err, "could not start NATS service")
+	}
 	return
 }
 

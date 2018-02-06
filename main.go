@@ -73,19 +73,22 @@ func main() {
 
 	config.Logger = logrus.New()
 
-	_, err = repository.InitRepository(hearth.AdaptRepositoryConfig(config))
-	if err != nil {
-		stdlog.Fatal(err)
-	}
 
 	if *applicationRole == "" || *applicationRole == "test" {
+		config.Logger = logrus.New()
+
+		_, err = repository.Init(hearth.AdaptRepositoryConfig(config))
+		if err != nil {
+			stdlog.Fatal(err)
+		}
+
 		test1()
 	} else if *applicationRole == "master" {
 		//-role master
 		err := appnode.NewApplicationNode(
 			&appnode.ApplicationNodeConfigType{
-				Logger:         config.Logger,
-				NatsUrl:        nats.DefaultURL,
+				AstraConfig:    *config,
+				NATSEndpoint:   nats.DefaultURL,
 				IsMaster:       true,
 				MasterRestPort: 9200,
 			},
@@ -97,9 +100,9 @@ func main() {
 		//-role slave -nodeIdDir=nodeId1
 		err := appnode.NewApplicationNode(
 			&appnode.ApplicationNodeConfigType{
-				Logger:   config.Logger,
-				NatsUrl:  nats.DefaultURL,
-				NodeName: "slave1",
+				AstraConfig:    *config,
+				NATSEndpoint: nats.DefaultURL,
+				NodeName:     "slave1",
 			},
 		)
 		if err != nil {
@@ -119,7 +122,7 @@ func test1() {
 	}
 	fmt.Println(config)
 
-	_, err = repository.InitRepository(hearth.AdaptRepositoryConfig(config))
+	_, err = repository.Init(hearth.AdaptRepositoryConfig(config))
 	if err != nil {
 		stdlog.Fatal(err)
 	}

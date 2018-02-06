@@ -7,6 +7,8 @@ import (
 	"sync"
 	"fmt"
 	"runtime"
+	"github.com/ovlad32/wax/hearth/handling"
+	"context"
 )
 
 var currentInstance *applicationNodeType
@@ -36,8 +38,8 @@ func (c CommandType) String() string {
 
 
 type ApplicationNodeConfigType struct {
-	NatsUrl  string
-	Logger   *logrus.Logger
+	AstraConfig handling.AstraConfigType
+	NATSEndpoint  string
 	IsMaster   bool
 	NodeName NodeNameType
 	MasterRestPort int
@@ -47,15 +49,18 @@ type ApplicationNodeConfigType struct {
 
 type applicationNodeType struct {
 	config   ApplicationNodeConfigType
+	ctx context.Context
+	ctxCancelFunc context.CancelFunc
 
 	encodedConn *nats.EncodedConn
-
-	workerMux            sync.RWMutex
 	commandSubscription  *nats.Subscription
+	//
+	workerMux            sync.RWMutex
 	workers              map[string]WorkerInterface
 	//
 	logger *logrus.Logger
 }
+
 type slaveApplicationNodeType struct {
 	*applicationNodeType
 }
@@ -97,10 +102,12 @@ err = node.encodedConn.Flush()
 		return err
 	}
 	return*/
+
 func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
+	logger := cfg.AstraConfig.Logger
 	if currentInstance != nil {
 		err = errors.New("current application node has already been initialized")
-		cfg.Logger.Fatal(err)
+		logger.Fatal(err)
 		return
 	}
 
@@ -108,7 +115,9 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 	instance := &applicationNodeType{
 		config: *cfg,
 	}
-	instance.logger = cfg.Logger
+	instance.logger = logger
+
+	instance.ctx, instance.ctxCancelFunc = context.WithCancel(context.Background())
 
 	var master *masterApplicationNodeType
 	var slave *slaveApplicationNodeType
@@ -126,7 +135,7 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 		master.config.NodeName = "MASTER"
 	} else {
 		if cfg.NodeName == "" {
-			panic("provide node name!")
+			logger.Fatal("Provide node name!")
 		}
 		slave = &slaveApplicationNodeType{
 			applicationNodeType:instance ,
@@ -138,8 +147,7 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 	if currentInstance != nil {
 		ciMux.Unlock()
 		err = errors.New("current application node has already been initialized")
-		cfg.Logger.Fatal(err)
-		return
+		logger.Fatal(err)
 	} else {
 		if cfg.IsMaster{
 			currentMaster = master
@@ -158,8 +166,9 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 		err = currentMaster.startServices()
 	}
 	if  err != nil {
-
+		logger.Fatal(err)
 	}
+	currentInstance.logger.Info("AppNode instance started...")
 
 	runtime.Goexit()
 
@@ -167,34 +176,33 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 }
 
 
-
+func (node *applicationNodeType) NodeId() string {
+	return string(node.config.NodeName)
+}
 
 func (node *applicationNodeType) connectToNATS() (err error) {
 	conn, err := nats.Connect(
-		node.config.NatsUrl,
+		node.config.NATSEndpoint,
 		nats.Name(string(node.config.NodeName)),
 	)
 	if err != nil {
-		err = errors.Wrapf(err, "could not connect to NATS at '%v'", node.config.NatsUrl)
-		node.logger.Fatal(err)
+		err = errors.Wrapf(err, "could not connect to NATS at '%v'", node.config.NATSEndpoint)
+		node.logger.Error(err)
 		return
 	}
 	node.encodedConn, err = nats.NewEncodedConn(conn, nats.GOB_ENCODER)
 	if err != nil {
-		err = errors.Wrapf(err, "could not create encoder for NATS")
-		logrus.Fatal(err)
+		err = errors.Wrap(err, "could not create encoder for NATS")
+		node.logger.Error(err)
 		return
 	}
-	node.logger.Info("Node connected to NATS")
-
+	node.logger.Info("Node has been connected to NATS")
 	return
 }
 
 
 
-func (node *applicationNodeType) NodeId() string {
-	return string(node.config.NodeName)
-}
+
 
 
 /*

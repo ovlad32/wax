@@ -21,15 +21,15 @@ type NodeNameType string
 type CommandType string
 
 const (
-	PARISH_OPEN  CommandType = "PARISH.OPEN"
-	PARISH_OPENED  CommandType = "PARISH.OPENED"
-	PARISH_CLOSE CommandType = "PARISH.CLOSE"
-	PARISH_CLOSED CommandType = "PARISH.CLOSED"
+	parishOpen   CommandType = "PARISH.OPEN"
+	parishOpened CommandType = "PARISH.OPENED"
+	parishClose  CommandType = "PARISH.CLOSE"
+	parishClosed CommandType = "PARISH.CLOSED"
 
-	CATEGORY_SPLIT_OPEN   CommandType = "SPLIT.CREATE"
-	CATEGORY_SPLIT_OPENED CommandType = "SPLIT.CREATED"
-	CATEGORY_SPLIT_CLOSE  CommandType = "SPLIT.CLOSE"
-	CATEGORY_SPLIT_CLOSED CommandType = "SPLIT.CLOSED"
+	categorySplitOpen   CommandType = "SPLIT.CREATE"
+	categorySplitOpened CommandType = "SPLIT.CREATED"
+	categorySplitClose  CommandType = "SPLIT.CLOSE"
+	categorySplitClosed CommandType = "SPLIT.CLOSED"
 )
 
 func (c CommandType) String() string {
@@ -215,7 +215,7 @@ func (node ApplicationNodeType) OpenChannel(tableId, splitId int64) {
 			err := node.encodedConn.Request(
 				v.CommandSubject,
 				CommandMessageType{
-					Command: CATEGORY_SPLIT_OPEN,
+					Command: categorySplitOpen,
 					Params: map[CommandMessageParamType]interface{}{
 						"tableInfoId": tableId,
 						"splitId":     splitId,

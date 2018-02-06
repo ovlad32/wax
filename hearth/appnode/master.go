@@ -10,7 +10,7 @@ import (
 )
 
 
-const MASTER_COMMAND_SUBJECT  = "COMMAND.MASTER"
+const masterCommandSubject = "COMMAND.MASTER"
 
 func (node *masterApplicationNodeType) startServices() (err error) {
 

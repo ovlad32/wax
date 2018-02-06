@@ -28,10 +28,10 @@ func (node *masterApplicationNodeType) initNatsService() (err error) {
 
 func (node *masterApplicationNodeType) makeCommandSubscription() (err error) {
 
-	node.logger.Infof("Create MASTER command subscription '%v'",MASTER_COMMAND_SUBJECT)
+	node.logger.Infof("Create MASTER command subscription '%v'", masterCommandSubject)
 
 	node.commandSubscription,err = node.encodedConn.Subscribe(
-		MASTER_COMMAND_SUBJECT,
+		masterCommandSubject,
 		node.commandSubscriptionFunc(),
 	)
 
@@ -54,7 +54,7 @@ func (node *masterApplicationNodeType) makeCommandSubscription() (err error) {
 func (node *masterApplicationNodeType) commandSubscriptionFunc() func(string, string, *CommandMessageType) {
 	return func(subj, reply string, msg *CommandMessageType) {
 		switch msg.Command {
-		case PARISH_OPEN:
+		case parishOpen:
 
 			commandSubject := msg.ParamString(slaveCommandSubjectParam,"")
 			if commandSubject == "" {
@@ -64,7 +64,7 @@ func (node *masterApplicationNodeType) commandSubscriptionFunc() func(string, st
 				node.logger.Infof("Start registering a new node with command subject '%v'",commandSubject)
 			}
 			response := &CommandMessageType{}
-			response.Command = PARISH_OPENED
+			response.Command = parishOpened
 
 			prev := node.FindWorkerById(commandSubject)
 
@@ -87,7 +87,7 @@ func (node *masterApplicationNodeType) commandSubscriptionFunc() func(string, st
 			}
 			node.logger.Infof("A new node with command subject '%v' has been successfully registered",commandSubject)
 		default:
-			panic (fmt.Sprintf("%v: cannot recognize incoming message command '%v' ",MASTER_COMMAND_SUBJECT,msg.Command))
+			panic (fmt.Sprintf("%v: cannot recognize incoming message command '%v' ", masterCommandSubject,msg.Command))
 		}
 	}
 }
@@ -98,7 +98,7 @@ func (node *masterApplicationNodeType) closeAllCommandSubscription()  (err error
 		response := new(CommandMessageType)
 		err = node.encodedConn.Request(subj,
 			&CommandMessageType{
-				Command:PARISH_CLOSE,
+				Command: parishClose,
 			},
 			response,
 			nats.DefaultTimeout,
@@ -106,7 +106,7 @@ func (node *masterApplicationNodeType) closeAllCommandSubscription()  (err error
 		if err!=nil {
 			node.logger.Error(err)
 		}
-		if response.Command != PARISH_CLOSED {
+		if response.Command != parishClosed {
 			node.logger.Error(response.Command)
 		}
 		//worker := node.FindWorkerById(subj)

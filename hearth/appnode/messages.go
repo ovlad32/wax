@@ -20,11 +20,12 @@ func (c CommandMessageParamType) String() string {
 }
 
 
+type CommandMessageParamMap map[CommandMessageParamType]interface{}
 
 type CommandMessageType struct {
 	Command CommandType
-	///Err error
-	Params map[CommandMessageParamType]interface{}
+	Err error
+	Params CommandMessageParamMap
 	//mux sync.Mutex
 }
 

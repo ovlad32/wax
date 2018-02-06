@@ -23,6 +23,7 @@ type WorkerHolderInterface interface {
 
 type basicWorker struct {
 	//NATS section
+	encodedConn *nats.EncodedConn
 	subscriptions []*nats.Subscription
 	id string
 }
@@ -37,6 +38,27 @@ func (worker basicWorker) Subscriptions() []*nats.Subscription {
 func (worker basicWorker) Id() string {
 	return worker.id
 }
+
+func (worker basicWorker) reportError(command CommandType, incoming error) (err error){
+	err = worker.encodedConn.Publish(masterCommandSubject,CommandMessageType{
+		Command:command,
+		Err:incoming,
+	})
+	if err != nil {
+		err = errors.Wrapf(err,"could not publish error message")
+		return
+	}
+	if err = worker.encodedConn.Flush(); err!=nil {
+		err = errors.Wrapf(err,"could not flush published error message")
+		return
+	}
+	if err = worker.encodedConn.LastError(); err!=nil {
+		err = errors.Wrapf(err, "could not wire published error message")
+		return
+	}
+	return
+}
+
 
 
 

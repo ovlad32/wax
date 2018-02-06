@@ -17,7 +17,7 @@ const (
 	splitIdParam CommandMessageParamType = "splitId"
 )
 
-func (agent *categorySplitWorker) categorySplitSubscriptionFunc() func(msg nats.Msg) {
+func (agent *categorySplitWorker) subscriptionFunc() func(msg nats.Msg) {
  	return func (msg nats.Msg) {
  		panic("not implemented yet")
 	}
@@ -31,8 +31,10 @@ func newCategorySplitWorker(
 ) (result *categorySplitWorker, err error) {
 
 	worker := &categorySplitWorker{
-			enc: enc,
-			logger:logger,
+		basicWorker:basicWorker{
+			encodedConn:enc,
+		},
+		logger:logger,
 	}
 
 
@@ -53,7 +55,7 @@ func newCategorySplitWorker(
 
 	worker.subscriptions[0], err = enc.Subscribe(
 		subjectName,
-		worker.categorySplitSubscriptionFunc(),
+		worker.subscriptionFunc(),
 	)
 	if err != nil {
 		logger.Error(err)
@@ -73,7 +75,7 @@ func newCategorySplitWorker(
 
 		err = enc.Publish(replySubject,
 			&CommandMessageType{
-				Command: CATEGORY_SPLIT_OPENED,
+				Command: categorySplitOpened,
 				Params: map[CommandMessageParamType]interface{}{
 					workerSubjectParam: worker.subscriptions[0].Subject,
 				},

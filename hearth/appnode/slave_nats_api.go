@@ -68,9 +68,9 @@ func (node *slaveApplicationNodeType) makeCommandSubscription() (err error) {
 
 		response := new(CommandMessageType)
 		err = node.encodedConn.Request(
-			MASTER_COMMAND_SUBJECT,
+			masterCommandSubject,
 			&CommandMessageType{
-				Command: PARISH_OPEN,
+				Command: parishOpen,
 				Params: map[CommandMessageParamType]interface{}{
 					slaveCommandSubjectParam: node.commandSubscription.Subject,
 				},
@@ -100,8 +100,8 @@ func (node *slaveApplicationNodeType) makeCommandSubscription() (err error) {
 		}
 
 		node.logger.Infof("Slave '%v' registration has been done",node.NodeId())
-		//if response.Command == PARISH_OPENED
-		//TODO:  PARISH_OPENED
+		//if response.Command == parishOpened
+		//TODO:  parishOpened
 		if response.ParamBool(ResubscribedParam,false)  {
 			node.logger.Warnf("Slave '%v' command subscription had been created before...",node.NodeId())
 			//Todo: clean
@@ -121,7 +121,7 @@ func (node *slaveApplicationNodeType) makeCommandSubscription() (err error) {
 func (node *slaveApplicationNodeType) commandSubscriptionFunc() func(string, string, *CommandMessageType) {
 	return func(subj, reply string, msg *CommandMessageType) {
 		switch msg.Command {
-		case PARISH_CLOSE:
+		case parishClose:
 			node.logger.Warnf("Signal of closing Slave '%v' command subscription has been received",node.NodeId())
 			if	node.commandSubscription != nil {
 				err := node.commandSubscription.Unsubscribe()
@@ -132,19 +132,30 @@ func (node *slaveApplicationNodeType) commandSubscriptionFunc() func(string, str
 			node.encodedConn.Publish(
 				reply,
 				&CommandMessageType{
-					Command:PARISH_CLOSED,
+					Command: parishClosed,
 				})
 			/*err := node.CloseRegularWorker(
 				reply,
 				msg,
-				PARISH_CLOSED,
+				parishClosed,
 			)
 			if err != nil {
 				panic(err.Error())
 			}*/
 			node.encodedConn.Close()
 			os.Exit(0)
-		case CATEGORY_SPLIT_OPEN:
+		case copyFileOpen:
+			worker, err := newCopyFileWorker(
+				node.encodedConn,
+				reply, msg,
+				node.logger,
+			)
+			if err != nil {
+				panic(err.Error())
+			}
+			node.AppendWorker(worker)
+
+		case categorySplitOpen:
 			worker, err := newCategorySplitWorker(
 				node.encodedConn,
 				reply, msg,
@@ -154,8 +165,8 @@ func (node *slaveApplicationNodeType) commandSubscriptionFunc() func(string, str
 				panic(err.Error())
 			}
 			node.AppendWorker(worker)
-		case CATEGORY_SPLIT_CLOSE:
-			err := node.CloseRegularWorker(reply,msg,CATEGORY_SPLIT_CLOSED)
+		case categorySplitClose:
+			err := node.CloseRegularWorker(reply,msg, categorySplitClosed)
 			if err != nil {
 				panic(err.Error())
 			}

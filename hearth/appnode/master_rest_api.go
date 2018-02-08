@@ -38,38 +38,65 @@ func (node masterApplicationNodeType) copyfileHandlerFunc() func (http.ResponseW
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		_ = vars
-		sourceFile, found := vars["sourceFile"]
+		for k,v := range vars {
+			fmt.Println(k," ",v)
+		}
+		found := true
+		sourceFile:= r.FormValue("sourceFile")
 
-		if found && sourceFile == "" {
+		if !found || sourceFile == "" {
 			err := errors.New("sourceFile is empty")
 			node.logger.Error(err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		targetNode, found := vars["targetNode"]
-		if found && targetNode == "" {
+
+		//targetFile, found := vars["targetFile"]
+		targetFile:= r.FormValue("targetFile")
+
+		if !found || targetFile == "" {
+			err := errors.New("targetFile is empty")
+			node.logger.Error(err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+
+		//targetNode, found := vars["targetNode"]
+		targetNode:= r.FormValue("targetNode")
+		if !found || targetNode == "" {
 			err := errors.New("targetNode is empty")
 			node.logger.Error(err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+
+		subj,err := node.copyfile(context.Background(),sourceFile,targetNode,targetFile);
+		node.logger.Info(subj);
+		if err!= nil {
+			node.logger.Error(err);
+		}
+
 		return
 	}
 }
 
-func (node masterApplicationNodeType) copyfile(ctx context.Context, sourceFile, targetNode,targetFile string) (
+func (node masterApplicationNodeType) copyfile(ctx context.Context, sourceFile, targetNode, targetFile string) (
 	subject string,err error)  {
 
-	subs := node.FindWorkerById(targetNode)
-	if subs ==nil {
-
+	subs := node.commandSubject(targetNode)
+	if subs == "" {
+		err= errors.Errorf("subs == nil ")
+		node.logger.Error(err)
+		return
 	}
 
 	response := new(CommandMessageType)
+	node.logger.Info(subs)
 	err = node.encodedConn.Request(
-		subs.Subscriptions()[0].Subject,
-		CommandMessageType{
+		subs,
+		&CommandMessageType{
 			Command: copyFileOpen,
 			Params: CommandMessageParamMap{
 				outputFilePathParm: targetFile,
@@ -79,21 +106,26 @@ func (node masterApplicationNodeType) copyfile(ctx context.Context, sourceFile, 
 		nats.DefaultTimeout,
 		)
 	if err = node.encodedConn.Flush(); err !=nil {
+		node.logger.Error(err)
 		return
 	}
 
 	if err = node.encodedConn.LastError(); err!=nil {
+		node.logger.Error(err)
 		return
 	}
 
 	if response.Command !=copyFileOpened {
-
+		err= errors.Errorf("response.Command !=copyFileOpened ")
+		node.logger.Error(err)
+		return
 	}
 
 	subject =  response.ParamString(workerSubjectParam,"")
 
 	file, err := os.Open(sourceFile)
 	if err != nil {
+		node.logger.Error(err)
 		return
 	}
 	buf := bufio.NewReaderSize(file,10*1024)
@@ -104,6 +136,7 @@ func (node masterApplicationNodeType) copyfile(ctx context.Context, sourceFile, 
 		if err != nil {
 			if err != io.EOF {
 				//todo:
+				node.logger.Error(err)
 				return
 			} else {
 				eof = true
@@ -119,13 +152,18 @@ func (node masterApplicationNodeType) copyfile(ctx context.Context, sourceFile, 
 				copyFileEOFParam: eof,
 			},
 		}
-		err = node.encodedConn.Publish(subject,message)
+		if err = node.encodedConn.Publish(subject,message);err!=nil {
+			node.logger.Error(err)
+
+		}
 
 		if err = node.encodedConn.Flush(); err !=nil {
+			node.logger.Error(err)
 			return
 		}
 
 		if err = node.encodedConn.LastError(); err!=nil {
+			node.logger.Error(err)
 			return
 		}
 		if eof {

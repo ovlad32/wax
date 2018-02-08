@@ -56,36 +56,43 @@ func (node *masterApplicationNodeType) commandSubscriptionFunc() func(string, st
 		switch msg.Command {
 		case parishOpen:
 
-			commandSubject := msg.ParamString(slaveCommandSubjectParam,"")
-			if commandSubject == "" {
-				node.logger.Warn("gotten command subject is empty!")
+			slaveCommandSubject := msg.ParamString(slaveCommandSubjectParam,"")
+			if slaveCommandSubject  == "" {
+				node.logger.Warn("gotten slave command subject is empty!")
 				return
-			} else {
-				node.logger.Infof("Start registering a new node with command subject '%v'",commandSubject)
 			}
+			slaveId := msg.ParamString(slaveIdParam,"")
+
+			if slaveId  == "" {
+				node.logger.Warn("gotten slaveId is empty!")
+				return
+			}
+			node.logger.Infof("Start registering new Slave '%v' with command subject '%v'",slaveId,slaveCommandSubject )
 			response := &CommandMessageType{}
 			response.Command = parishOpened
-
-			prev := node.FindWorkerById(commandSubject)
-
-			if prev != nil {
-				response.Params = map[CommandMessageParamType]interface{} {
+			node.workerMux.RLock()
+			if prev, found := node.slaveCommandSubjects[slaveId]; found{
+				node.workerMux.RUnlock()
+				response.Params = CommandMessageParamMap {
 					ResubscribedParam:true,
 				}
-				node.logger.Infof("A new node with command subject '%v' had been registered previously",commandSubject)
-			} else {
-				node.slaveCommandSubjects = append(node.slaveCommandSubjects, commandSubject)
+				node.logger.Infof(
+					"New Slave '%v' with command subject '%v' had been registered previously with '%v'",
+					slaveId,
+					slaveCommandSubject,
+					prev,
+				)
 			}
-			worker := basicWorker{
-				id:commandSubject,
-			}
-			node.AppendWorker(worker)
+			node.workerMux.RUnlock()
+			node.workerMux.Lock()
+			node.slaveCommandSubjects[slaveId] = slaveCommandSubject
+			node.workerMux.Unlock()
 			err := node.encodedConn.Publish(reply,response)
 			if err != nil {
 				err = errors.Wrapf(err,"could not reply of opening a new slave")
 				return
 			}
-			node.logger.Infof("A new node with command subject '%v' has been successfully registered",commandSubject)
+			node.logger.Infof("A new node with command subject '%v' has been successfully registered",slaveCommandSubject)
 		default:
 			panic (fmt.Sprintf("%v: cannot recognize incoming message command '%v' ", masterCommandSubject,msg.Command))
 		}
@@ -94,9 +101,10 @@ func (node *masterApplicationNodeType) commandSubscriptionFunc() func(string, st
 
 func (node *masterApplicationNodeType) closeAllCommandSubscription()  (err error) {
 
-	for index, subj := range node.slaveCommandSubjects {
+	node.workerMux.Lock()
+	for _, commandSubject := range node.slaveCommandSubjects {
 		response := new(CommandMessageType)
-		err = node.encodedConn.Request(subj,
+		err = node.encodedConn.Request(commandSubject,
 			&CommandMessageType{
 				Command: parishClose,
 			},
@@ -109,11 +117,9 @@ func (node *masterApplicationNodeType) closeAllCommandSubscription()  (err error
 		if response.Command != parishClosed {
 			node.logger.Error(response.Command)
 		}
-		//worker := node.FindWorkerById(subj)
-
-		node.RemoveWorkerById(subj)
-		node.slaveCommandSubjects[index] = ""
 	}
+	node.slaveCommandSubjects = make(map[string]string)
+	node.workerMux.Unlock()
 	node.logger.Warnf("Slave command subscriptions have been closed")
 
 	err = node.commandSubscription.Unsubscribe()

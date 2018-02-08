@@ -2,13 +2,13 @@ package appnode
 
 import (
 	"os"
-	"fmt"
 	"github.com/nats-io/go-nats"
 	"github.com/pkg/errors"
 )
 
 const (
 	slaveCommandSubjectParam  CommandMessageParamType = "slaveCommandSubject"
+	slaveIdParam CommandMessageParamType = "slaveId"
 	ResubscribedParam CommandMessageParamType = "resubscribed"
 )
 
@@ -29,13 +29,10 @@ func (node *slaveApplicationNodeType) initNatsService() (err error) {
 }
 
 
-func (node slaveApplicationNodeType) commandSubject() string {
-	return fmt.Sprintf("COMMAND/%v", node.config.NodeName)
-}
 
 func (node *slaveApplicationNodeType) makeCommandSubscription() (err error) {
 
-	slaveSubject := node.commandSubject()
+	slaveSubject := node.commandSubject(string(node.config.NodeName));
 	node.logger.Infof("Creating Slave '%v' command subscription '%v'...",node.NodeId(),slaveSubject)
 	node.commandSubscription, err = node.encodedConn.Subscribe(
 		slaveSubject,
@@ -71,8 +68,9 @@ func (node *slaveApplicationNodeType) makeCommandSubscription() (err error) {
 			masterCommandSubject,
 			&CommandMessageType{
 				Command: parishOpen,
-				Params: map[CommandMessageParamType]interface{}{
+				Params: CommandMessageParamMap{
 					slaveCommandSubjectParam: node.commandSubscription.Subject,
+					slaveIdParam: node.NodeId(),
 				},
 			},
 			response,
@@ -120,6 +118,7 @@ func (node *slaveApplicationNodeType) makeCommandSubscription() (err error) {
 
 func (node *slaveApplicationNodeType) commandSubscriptionFunc() func(string, string, *CommandMessageType) {
 	return func(subj, reply string, msg *CommandMessageType) {
+		node.logger.Infof("Slave %v got command message: %v",node.NodeId(),msg.Command)
 		switch msg.Command {
 		case parishClose:
 			node.logger.Warnf("Signal of closing Slave '%v' command subscription has been received",node.NodeId())

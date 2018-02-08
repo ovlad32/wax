@@ -3,6 +3,7 @@ package appnode
 import (
 	"github.com/pkg/errors"
 	"github.com/nats-io/go-nats"
+	"fmt"
 )
 
 
@@ -77,11 +78,26 @@ func (node *applicationNodeType) AppendWorker(a WorkerInterface) {
 		node.workerMux.Unlock()
 	}
 }
+
+func (node *applicationNodeType) FindWorkerCommandSubject(id string) WorkerInterface {
+	return node.FindWorkerById(node.commandSubject(id));
+}
+
 func (node *applicationNodeType) FindWorkerById(id string) WorkerInterface {
 	if node.workers == nil {
 		return nil
 	}
 	node.workerMux.RLock()
+	{
+		for k, v := range node.workers {
+			fmt.Print(k)
+			for _,s := range v.Subscriptions() {
+				fmt.Print(", ",s.Subject)
+			}
+			fmt.Println()
+		}
+	}
+
 	worker, found := node.workers[id]
 	node.workerMux.RUnlock()
 	if found {

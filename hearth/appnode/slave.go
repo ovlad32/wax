@@ -29,7 +29,7 @@ func (node *slaveApplicationNodeType) startServices() (err error) {
 			err = errors.Wrapf(err,"could not close command subscriptions")
 			node.logger.Error(err)
 		}
-		node.logger.Warn("Master node shut down")
+		node.logger.Warnf("Slave '%v' shut down",node.NodeId())
 		os.Exit(0)
 	}()
 	return

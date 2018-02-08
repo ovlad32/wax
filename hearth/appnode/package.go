@@ -67,7 +67,7 @@ type slaveApplicationNodeType struct {
 
 type masterApplicationNodeType struct{
 	*applicationNodeType
-	slaveCommandSubjects []string
+	slaveCommandSubjects map[string]string
 }
 
 /*
@@ -152,6 +152,8 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 		if cfg.IsMaster{
 			currentMaster = master
 			currentInstance = master.applicationNodeType
+			currentMaster.slaveCommandSubjects = make(map[string]string)
+			currentMaster.workers = make(map[string]WorkerInterface)
 			ciMux.Unlock()
 		} else {
 			currentSlave = slave
@@ -179,6 +181,12 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 func (node *applicationNodeType) NodeId() string {
 	return string(node.config.NodeName)
 }
+
+func (node applicationNodeType) commandSubject(id string) string {
+	return fmt.Sprintf("COMMAND/%v",id)
+}
+
+
 
 func (node *applicationNodeType) connectToNATS() (err error) {
 	conn, err := nats.Connect(

@@ -82,7 +82,7 @@ func newCopyFileWorker(
 			return
 		}
 		return
-	} != nil {
+	}() != nil {
 		worker.subscriptions[0].Unsubscribe()
 		worker.subscriptions = nil
 	}

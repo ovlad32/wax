@@ -2,8 +2,8 @@ package hearth
 
 import (
 	"github.com/ovlad32/wax/hearth/handling"
-	"github.com/ovlad32/wax/hearth/repository"
 	"github.com/ovlad32/wax/hearth/process/dump"
+	"github.com/ovlad32/wax/hearth/repository"
 )
 
 func AdaptRepositoryConfig(astra *handling.AstraConfigType) (result *repository.RepositoryConfigType) {
@@ -20,10 +20,10 @@ func AdaptRepositoryConfig(astra *handling.AstraConfigType) (result *repository.
 func AdaptDataReaderConfig(astra *handling.AstraConfigType) (result *dump.DumperConfigType) {
 
 	result = &dump.DumperConfigType{
-		LineSeparator:       astra.AstraLineSeparator,
-		ColumnSeparator:     astra.AstraColumnSeparator,
-		GZip:                astra.AstraDataGZip,
-		BufferSize:          astra.AstraReaderBufferSize,
+		LineSeparator:   astra.AstraLineSeparator,
+		ColumnSeparator: astra.AstraColumnSeparator,
+		GZip:            astra.AstraDataGZip,
+		BufferSize:      astra.AstraReaderBufferSize,
 	}
 
 	return result

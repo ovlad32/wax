@@ -72,7 +72,13 @@ func main() {
 	}
 
 	config.Logger = logrus.New()
-
+	//a:= unsafe.Sizeof(appnode.CommandMessageType{})
+	//fmt.Println(a)
+	//b:= unsafe.Sizeof(appnode.CommandMessageParamType(""))
+	//fmt.Println(b)
+	//c:= unsafe.Sizeof(appnode.CommandMessageParamMap{})
+	//fmt.Println(c)
+	//logrus.Fatal()
 
 	if *applicationRole == "" || *applicationRole == "test" {
 		config.Logger = logrus.New()
@@ -100,9 +106,9 @@ func main() {
 		//-role slave -nodeIdDir=nodeId1
 		err := appnode.NewApplicationNode(
 			&appnode.ApplicationNodeConfigType{
-				AstraConfig:    *config,
+				AstraConfig:  *config,
 				NATSEndpoint: nats.DefaultURL,
-				NodeName:     "slave1",
+				NodeId:     "slave1",
 			},
 		)
 		if err != nil {

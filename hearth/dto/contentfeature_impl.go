@@ -12,6 +12,7 @@ import (
 
 const VarcharMax = 4000
 const ContentSourceType = ""
+
 type BitsetContentType int
 
 const (
@@ -74,8 +75,8 @@ var featureKeyStorage = featureKeyStorageType{
 
 func NewContentFeature(drop *SyrupDropType) (result *ContentFeatureType) {
 	result = &ContentFeatureType{
-		Column: drop.Column,
-		ColumnInfoId:drop.Column.Id,
+		Column:       drop.Column,
+		ColumnInfoId: drop.Column.Id,
 	}
 	result.stats.minNumericValue = math.MaxFloat64
 	result.stats.maxNumericValue = -math.MaxFloat64
@@ -139,6 +140,7 @@ func (feature ContentFeatureType) String() (result string) {
 	result = fmt.Sprintf("feature(Key:%v) on %v.%v.", feature.Key, feature.Column.TableInfo, feature.Column)
 	return
 }
+
 /*
 func (feature ContentFeatureType) BitsetFileName(suffix BitsetContentType) (fileName string, err error) {
 	fileName = fmt.Sprintf("%v.%v.%v.bitset",

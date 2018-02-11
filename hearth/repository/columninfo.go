@@ -7,7 +7,6 @@ import (
 	"github.com/ovlad32/wax/hearth/handling/nullable"
 )
 
-
 func ColumnInfoSeqId() (id int64, err error) {
 	err = iDb.QueryRow("select nextval('COLUMN_INFO_SEQ')").Scan(&id)
 	if err != nil {
@@ -100,9 +99,9 @@ func PutColumnInfo(ctx context.Context, columnInfo *dto.ColumnInfoType) (err err
 		 ,FUSION_COLUMN_GROUP_ID
          ,FUSION_SEPARATOR
 		 ,SOURCE_SLICE_COLUMN_INFO_ID
-       ) key(ID) `+data.valuePlaceholders()
+       ) key(ID) ` + data.valuePlaceholders()
 
-	_,err = ExecContext(ctx,dml,data...)
+	_, err = ExecContext(ctx, dml, data...)
 
 	if err != nil {
 		if newOne {
@@ -117,9 +116,9 @@ func PutColumnInfo(ctx context.Context, columnInfo *dto.ColumnInfoType) (err err
 	return
 }
 
-func columnInfo(ctx context.Context, where string, args... interface{} ) (result []*dto.ColumnInfoType, err error) {
+func columnInfo(ctx context.Context, where string, args ...interface{}) (result []*dto.ColumnInfoType, err error) {
 
-	result = make([]*dto.ColumnInfoType,0, 5)
+	result = make([]*dto.ColumnInfoType, 0, 5)
 	query := `SELECT  
 		 ID 
 		 ,NAME 
@@ -158,9 +157,9 @@ func columnInfo(ctx context.Context, where string, args... interface{} ) (result
 	}
 
 	query = query + " ORDER BY POSITION"
-	rws,err := QueryContext(ctx, query, args...)
+	rws, err := QueryContext(ctx, query, args...)
 	if err != nil {
-		err = fmt.Errorf("could not scan column_info entity data:%v",err)
+		err = fmt.Errorf("could not scan column_info entity data:%v", err)
 
 		return
 	}
@@ -216,11 +215,11 @@ func columnInfo(ctx context.Context, where string, args... interface{} ) (result
 func ColumnInfoByTable(ctx context.Context, tableInfo *dto.TableInfoType) (result []*dto.ColumnInfoType, err error) {
 
 	if tableInfo == nil {
-		fmt.Errorf( "table reference is not initialized")
+		fmt.Errorf("table reference is not initialized")
 		return
 	}
-	if !tableInfo.Id.Valid(){
-		fmt.Errorf( "table.Id is not initialized")
+	if !tableInfo.Id.Valid() {
+		fmt.Errorf("table.Id is not initialized")
 		return
 	}
 
@@ -228,7 +227,7 @@ func ColumnInfoByTable(ctx context.Context, tableInfo *dto.TableInfoType) (resul
 		ctx,
 		" WHERE TABLE_INFO_ID = ? and FUSION_COLUMN_GROUP_ID is null",
 		tableInfo.Id.Value(),
-		)
+	)
 	if err == nil {
 		for index := range result {
 			result[index].TableInfo = tableInfo
@@ -243,15 +242,13 @@ func ColumnInfoById(ctx context.Context, Id int) (result *dto.ColumnInfoType, er
 		ctx,
 		" WHERE ID = ?",
 		Id,
-		)
+	)
 
 	if err == nil && len(res) > 0 {
 		result = res[0]
 	}
 	return
 }
-
-
 
 func fusionColumnGroup(
 	ctx context.Context,
@@ -299,7 +296,7 @@ func fusionColumnGroup(
 func FusionColumnGroupByTable(
 	ctx context.Context,
 	table *dto.TableInfoType,
-) (result dto.FusionColumnGroupListType , err error) {
+) (result dto.FusionColumnGroupListType, err error) {
 	_ = ctx
 
 	defer func() {
@@ -343,10 +340,9 @@ func fusionColumnGroupByTableId(
 		ctx,
 		" WHERE TABLE_INFO_ID = ?",
 		Id,
-		)
+	)
 	return
 }
-
 
 func ColumnsByGroupId(ctx context.Context, groupId int64) (result dto.ColumnInfoListType, err error) {
 
@@ -381,8 +377,8 @@ func PutFusionColumnGroup(ctx context.Context, entity *dto.FusionColumnGroupType
 		dml :=
 			`insert into fusion_column_group (
               id, table_info_id, group_key,row_count
-			 ) `+data.valuePlaceholders()
-		_,err = ExecContext(ctx,dml,data...)
+			 ) ` + data.valuePlaceholders()
+		_, err = ExecContext(ctx, dml, data...)
 
 		if err != nil {
 			entity.Id = nullable.NullInt64{}
@@ -391,7 +387,7 @@ func PutFusionColumnGroup(ctx context.Context, entity *dto.FusionColumnGroupType
 		}
 	} else {
 		dml := `update fusion_column_group set row_count=? where id = ?`
-		_, err  = ExecContext(ctx,dml,entity.RowCount,entity.Id)
+		_, err = ExecContext(ctx, dml, entity.RowCount, entity.Id)
 		if err != nil {
 			err = fmt.Errorf("could not update FusionColumnGroup entity: %v", err)
 			return err

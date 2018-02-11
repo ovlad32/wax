@@ -1,8 +1,8 @@
 package rest
 
 import (
-	"net/http"
 	"github.com/sirupsen/logrus"
+	"net/http"
 )
 
 type IndexingRequestType struct {

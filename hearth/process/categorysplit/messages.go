@@ -1,7 +1,5 @@
 package categorysplit
 
-
-
 /*
 import (
 	"github.com/nats-io/nuid"
@@ -64,4 +62,3 @@ func (n messager) CreateChannel(tableId, splitId int64)(c interface{},err error)
 
 
 */
-

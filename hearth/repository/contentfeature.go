@@ -6,9 +6,8 @@ import (
 	"github.com/ovlad32/wax/hearth/dto"
 )
 
-
 func PutContentFeature(ctx context.Context, feature *dto.ContentFeatureType) (err error) {
-	data :=varray{
+	data := varray{
 		feature.Column.Id,
 		feature.Key,
 		feature.ByteLength,
@@ -24,9 +23,9 @@ func PutContentFeature(ctx context.Context, feature *dto.ContentFeatureType) (er
 		feature.MaxNumericValue,
 		feature.MovingMean,
 		feature.MovingStandardDeviation,
-		}
+	}
 
-	_,err = ExecContext(ctx,
+	_, err = ExecContext(ctx,
 		`merge into column_feature_stats(
 				 column_info_id 
 				, key 
@@ -45,11 +44,11 @@ func PutContentFeature(ctx context.Context, feature *dto.ContentFeatureType) (er
 				, moving_stddev 
 			 ) 
              key (column_info_id, key) `+data.valuePlaceholders(),
-             	data...
-		)
+		data...,
+	)
 
 	if err != nil {
-		err = fmt.Errorf("could not persist column_feature_stats object: %v",err)
+		err = fmt.Errorf("could not persist column_feature_stats object: %v", err)
 		return
 	}
 

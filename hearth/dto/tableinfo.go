@@ -17,9 +17,9 @@ type TableInfoType struct {
 	PathToDataDir nullable.NullString `json:"path-to-data-dir"`
 	//Chunk         nullable.NullString `json:"chunk"`
 	SourceSliceTableInfoId nullable.NullInt64
-	CategorySplitDataId nullable.NullInt64
-	Metadata      *MetadataType
-	Columns       []*ColumnInfoType `json:"columns"`
+	CategorySplitDataId    nullable.NullInt64
+	Metadata               *MetadataType
+	Columns                []*ColumnInfoType `json:"columns"`
 }
 
 type TableInfoArrayType []*TableInfoType

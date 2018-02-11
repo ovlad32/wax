@@ -1,74 +1,79 @@
 package appnode
 
 import (
-	"github.com/pkg/errors"
-	"github.com/nats-io/go-nats"
 	"fmt"
+	"github.com/nats-io/go-nats"
+	"github.com/pkg/errors"
 )
-
 
 const (
-	workerSubjectParam CommandMessageParamType =  "workerSubject"
+	workerSubjectParam CommandMessageParamType = "workerSubject"
 )
+
 type WorkerInterface interface {
-	Id() string
+	Id() SubjectType
 	Subscriptions() []*nats.Subscription
 }
 
 type WorkerHolderInterface interface {
-	AppendWorker(a WorkerInterface)
-	FindWorkerById(id string) WorkerInterface
-	RemoveWorkerById(id string)
-	CloseRegularWorker(id string)
+	Append(a WorkerInterface)
+	FindBy(subject SubjectType) WorkerInterface
+	RemoveBy(subject SubjectType)
+	CloseRegularWorker(subject SubjectType)
 }
 
 type basicWorker struct {
 	//NATS section
-	encodedConn *nats.EncodedConn
+	encodedConn   *nats.EncodedConn
 	subscriptions []*nats.Subscription
-	id string
+	id           SubjectType
 }
 
+func newWorkersMap() (map[SubjectType]WorkerInterface) {
+	return make(map[SubjectType]WorkerInterface)
+}
 
 
 func (worker basicWorker) Subscriptions() []*nats.Subscription {
 	return worker.subscriptions
 }
 
-
-func (worker basicWorker) Id() string {
+func (worker basicWorker) Id() SubjectType {
 	return worker.id
 }
 
-func (worker basicWorker) reportError(command CommandType, incoming error) (err error){
-	err = worker.encodedConn.Publish(masterCommandSubject,CommandMessageType{
-		Command:command,
-		Err:incoming,
-	})
+func (worker basicWorker) reportError(command CommandType, incoming error) (err error) {
+	errMsg := &CommandMessageType{
+		Command: command,
+		Err:     incoming,
+	}
+	if len(worker.subscriptions) > 0 {
+		errMsg.Params = CommandMessageParamMap{
+			workerSubjectParam: worker.subscriptions[0],
+		}
+	}
+
+	err = worker.encodedConn.Publish(masterCommandSubject, errMsg)
 	if err != nil {
-		err = errors.Wrapf(err,"could not publish error message")
+		err = errors.Wrapf(err, "could not publish error message")
 		return
 	}
-	if err = worker.encodedConn.Flush(); err!=nil {
-		err = errors.Wrapf(err,"could not flush published error message")
+	if err = worker.encodedConn.Flush(); err != nil {
+		err = errors.Wrapf(err, "could not flush published error message")
 		return
 	}
-	if err = worker.encodedConn.LastError(); err!=nil {
+	if err = worker.encodedConn.LastError(); err != nil {
 		err = errors.Wrapf(err, "could not wire published error message")
 		return
 	}
 	return
 }
 
-
-
-
-
-func (node *applicationNodeType) AppendWorker(a WorkerInterface) {
+func (node *slaveApplicationNodeType) AppendWorker(a WorkerInterface) {
 	if node.workers == nil {
 		node.workerMux.Lock()
 		if node.workers == nil {
-			node.workers = make(map[string]WorkerInterface)
+			node.workers = newWorkersMap()
 		}
 		node.workers[a.Id()] = a
 		node.workerMux.Unlock()
@@ -79,11 +84,11 @@ func (node *applicationNodeType) AppendWorker(a WorkerInterface) {
 	}
 }
 
-func (node *applicationNodeType) FindWorkerCommandSubject(id string) WorkerInterface {
-	return node.FindWorkerById(node.commandSubject(id));
+func (node *slaveApplicationNodeType) FindWorkerCommandSubject(id NodeIdType) WorkerInterface {
+	return node.FindWorkerById(NodeIdType(node.commandSubject(id)))
 }
 
-func (node *applicationNodeType) FindWorkerById(id string) WorkerInterface {
+func (node *slaveApplicationNodeType) FindWorkerById(id NodeIdType) WorkerInterface {
 	if node.workers == nil {
 		return nil
 	}
@@ -91,8 +96,8 @@ func (node *applicationNodeType) FindWorkerById(id string) WorkerInterface {
 	{
 		for k, v := range node.workers {
 			fmt.Print(k)
-			for _,s := range v.Subscriptions() {
-				fmt.Print(", ",s.Subject)
+			for _, s := range v.Subscriptions() {
+				fmt.Print(", ", s.Subject)
 			}
 			fmt.Println()
 		}
@@ -106,25 +111,25 @@ func (node *applicationNodeType) FindWorkerById(id string) WorkerInterface {
 	return nil
 }
 
-func (node *applicationNodeType) RemoveWorkerById(id string) {
+func (node *slaveApplicationNodeType) RemoveWorkerById(id SubjectType) {
 	node.workerMux.Lock()
 	delete(node.workers, id)
 	node.workerMux.Unlock()
 }
 
-func (node *applicationNodeType) CloseRegularWorker(
+func (node *slaveApplicationNodeType) CloseRegularWorker(
 	replySubject string,
 	message *CommandMessageType,
 	replyCommand CommandType) (err error) {
 
-	id := message.ParamString(workerSubjectParam, "")
-	if id == "" {
+	id := message.ParamSubject(workerSubjectParam)
+	if id.IsEmpty() {
 		err = errors.Errorf("Parameter %v is empty", workerSubjectParam)
 		node.logger.Error(err)
 		return err
 	}
 
-	worker := node.FindWorkerById(id)
+	worker := node.FindById(id)
 	if worker == nil {
 		err = errors.Errorf("could not find %v worker", id)
 		node.logger.Error(err)
@@ -153,4 +158,3 @@ func (node *applicationNodeType) CloseRegularWorker(
 	node.RemoveWorkerById(id)
 	return
 }
-

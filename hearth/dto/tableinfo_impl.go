@@ -12,8 +12,8 @@ func (t TableInfoType) String() (result string) {
 	return
 }
 func (t TableInfoType) MaxColumnPosition() (result int) {
-	for _, c := range(t.ColumnList()) {
-		if c.Position.Valid() && int(c.Position.Value())>result {
+	for _, c := range t.ColumnList() {
+		if c.Position.Valid() && int(c.Position.Value()) > result {
 			result = int(c.Position.Value())
 		}
 	}
@@ -32,6 +32,3 @@ func (t TableInfoType) ColumnList() ColumnInfoListType {
 func (t *TableInfoType) TableInfoReference() *TableInfoType {
 	return t
 }
-
-
-

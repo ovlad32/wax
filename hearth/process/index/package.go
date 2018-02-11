@@ -1,9 +1,10 @@
 package index
 
 import (
-	"github.com/ovlad32/wax/hearth/dto"
 	"context"
+	"github.com/ovlad32/wax/hearth/dto"
 )
+
 var packageName string = "index"
 
 type BitsetIndexer interface {
@@ -15,6 +16,3 @@ type BitsetIndexer interface {
 		targetColumns dto.ColumnListInterface,
 	) (err error)
 }
-
-
-

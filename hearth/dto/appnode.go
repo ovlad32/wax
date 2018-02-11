@@ -5,13 +5,10 @@ import (
 )
 
 type AppNodeType struct {
-	Id nullable.NullInt64
-	Hostname string
-	Address string
+	Id            nullable.NullInt64
+	Hostname      string
+	Address       string
 	LastHeartbeat string
-	State string
-	Role  string
+	State         string
+	Role          string
 }
-
-
-

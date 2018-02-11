@@ -2,14 +2,14 @@ package sort
 
 import (
 	"context"
-	"sort"
-	"github.com/ovlad32/wax/hearth/process/dump"
 	"github.com/ovlad32/wax/hearth/misc"
+	"github.com/ovlad32/wax/hearth/process/dump"
 	"os"
+	"sort"
 )
 
 type ColumnSorterConfigType struct {
-	DumpReaderConfig *dump.DumperConfigType
+	DumpReaderConfig           *dump.DumperConfigType
 	PathToSortedSliceDirectory string
 }
 type ColumnSorterType struct {
@@ -17,13 +17,13 @@ type ColumnSorterType struct {
 }
 
 //type sortingColumnAddressType struct {
-	//start, finish uint16
+//start, finish uint16
 //}
 
 //type sortingColumnAddressListType []sortingColumnAddressType;
 type sortableLineType struct {
-	line []byte
-	start []uint16
+	line   []byte
+	start  []uint16
 	finish []uint16
 }
 
@@ -35,23 +35,23 @@ type SortByColumnParamInterface interface {
 
 func NewColumnSorter(cfg *ColumnSorterConfigType) (result *ColumnSorterType) {
 	result = &ColumnSorterType{
-		config:*cfg,
+		config: *cfg,
 	}
 
 	return result
 }
 
 func (sorter *ColumnSorterType) SortByColumn(
-		ctx context.Context,
-		pathToDumpFile string,
-		dumpRowCount uint64,
-		sortingColumnPositions []bool,
-		) (err error) {
-	var dumpColumnCount= len(sortingColumnPositions)
+	ctx context.Context,
+	pathToDumpFile string,
+	dumpRowCount uint64,
+	sortingColumnPositions []bool,
+) (err error) {
+	var dumpColumnCount = len(sortingColumnPositions)
 	sortingColumnCount := 0
 	for _, flag := range sortingColumnPositions {
 		if flag {
-			sortingColumnCount ++
+			sortingColumnCount++
 		}
 	}
 
@@ -61,7 +61,7 @@ func (sorter *ColumnSorterType) SortByColumn(
 	}*/
 
 	var maxLenIndexes []uint16 = make([]uint16, dumpColumnCount)
-	var sortableLines= make([]sortableLineType, 0, dumpRowCount)
+	var sortableLines = make([]sortableLineType, 0, dumpRowCount)
 
 	var addressIndex int = 0
 	processRowContent := func(
@@ -133,10 +133,10 @@ func (sorter *ColumnSorterType) SortByColumn(
 				buffJ := sortableLines[j].line[startJ:finishJ]
 				result = misc.ByteBufferLess(buffI, buffJ)
 				if result != 0 {
-					break;
+					break
 				}
 			}
-			return result<0
+			return result < 0
 		},
 	)
 
@@ -181,7 +181,3 @@ func (sorter *ColumnSorterType) SortByColumn(
 	}
 	return
 }
-
-
-
-

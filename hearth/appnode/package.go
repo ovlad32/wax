@@ -1,14 +1,14 @@
 package appnode
 
 import (
+	"context"
+	"fmt"
 	"github.com/nats-io/go-nats"
+	"github.com/ovlad32/wax/hearth/handling"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"sync"
-	"fmt"
 	"runtime"
-	"github.com/ovlad32/wax/hearth/handling"
-	"context"
+	"sync"
 )
 
 var currentInstance *applicationNodeType
@@ -16,92 +16,60 @@ var currentMaster *masterApplicationNodeType
 var currentSlave *slaveApplicationNodeType
 
 var ciMux sync.Mutex
+type stringDerivedType string
 
-type NodeNameType string
-type CommandType string
+type NodeIdType stringDerivedType
+type CommandType stringDerivedType
+type SubjectType stringDerivedType
+
+type CommandMessageParamType stringDerivedType
+
 
 const (
 	parishOpen   CommandType = "PARISH.OPEN"
 	parishOpened CommandType = "PARISH.OPENED"
 	parishClose  CommandType = "PARISH.CLOSE"
 	parishClosed CommandType = "PARISH.CLOSED"
-
-	categorySplitOpen   CommandType = "SPLIT.CREATE"
-	categorySplitOpened CommandType = "SPLIT.CREATED"
-	categorySplitClose  CommandType = "SPLIT.CLOSE"
-	categorySplitClosed CommandType = "SPLIT.CLOSED"
 )
 
-func (c CommandType) String() string {
-	return string(c)
-}
+
 
 
 type ApplicationNodeConfigType struct {
-	AstraConfig handling.AstraConfigType
-	NATSEndpoint  string
-	IsMaster   bool
-	NodeName NodeNameType
+	AstraConfig    handling.AstraConfigType
+	NATSEndpoint   string
+	IsMaster       bool
+	NodeId         NodeIdType
 	MasterRestPort int
 }
 
-
-
 type applicationNodeType struct {
-	config   ApplicationNodeConfigType
-	ctx context.Context
+	config        ApplicationNodeConfigType
+	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
 
-	encodedConn *nats.EncodedConn
-	commandSubscription  *nats.Subscription
+	encodedConn         *nats.EncodedConn
+	commandSubscription *nats.Subscription
 	//
-	workerMux            sync.RWMutex
-	workers              map[string]WorkerInterface
 	//
 	logger *logrus.Logger
 }
 
 type slaveApplicationNodeType struct {
 	*applicationNodeType
+	//
+	payloadSizeAdjustments map[CommandType]int64
+	workerMux              sync.RWMutex
+	workers                map[SubjectType]WorkerInterface
 }
 
-type masterApplicationNodeType struct{
+
+type masterApplicationNodeType struct {
 	*applicationNodeType
-	slaveCommandSubjects map[string]string
+	slaveCommandMux sync.RWMutex
+	slaveCommandSubjects map[NodeIdType]SubjectType
+	//TODO: CancelFunc!!!
 }
-
-/*
-err = errors.Wrapf(err,"could not reply of closing  %v worker",id )
-node.logger.Error(err)
-return err
-}
-err = errors.Wrapf(err, "could not flush published reply of closing  %v worker", id)
-reply of closing  %v worker", id)
-
-
-func (node *ApplicationNodeType) publishReplay(subj string, msg *CommandMessageType) (err error) {
-	err = node.encodedConn.Publish(subj, msg)
-	if err != nil {
-		err = errors.Wrap(err, "could not publish reply")
-		node.logger.Error(err)
-		return err
-	}
-	return
-}
-
-
-err = node.encodedConn.Flush()
-	if err != nil {
-		err = errors.Wrap(err, "could not flush published reply")
-		node.logger.Error(err)
-		return err
-	}
-	if err = node.encodedConn.LastError(); err != nil {
-		err = errors.Wrap(err, "error while wiring flushed replay")
-		node.logger.Error(err)
-		return err
-	}
-	return*/
 
 func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 	logger := cfg.AstraConfig.Logger
@@ -110,7 +78,6 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 		logger.Fatal(err)
 		return
 	}
-
 
 	instance := &applicationNodeType{
 		config: *cfg,
@@ -123,25 +90,25 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 	var slave *slaveApplicationNodeType
 	//result.hostName, err = os.Hostname()
 	if err != nil {
-		err = fmt.Errorf("could not get local host name: %v",err)
+		err = fmt.Errorf("could not get local host name: %v", err)
 		return
 	}
 
-
 	if cfg.IsMaster {
 		master = &masterApplicationNodeType{
-			applicationNodeType:instance ,
+			applicationNodeType: instance,
 		}
-		master.config.NodeName = "MASTER"
+		master.config.NodeId = "MASTER"
 	} else {
-		if cfg.NodeName == "" {
-			logger.Fatal("Provide node name!")
+		if cfg.NodeId == "" {
+			logger.Fatal("Provide node id!")
 		}
 		slave = &slaveApplicationNodeType{
-			applicationNodeType:instance ,
+			applicationNodeType: instance,
 		}
+		slave.payloadSizeAdjustments = make(map[CommandType]int64)
+		slave.workers = make(map[SubjectType]WorkerInterface)
 	}
-
 
 	ciMux.Lock()
 	if currentInstance != nil {
@@ -149,11 +116,10 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 		err = errors.New("current application node has already been initialized")
 		logger.Fatal(err)
 	} else {
-		if cfg.IsMaster{
+		if cfg.IsMaster {
 			currentMaster = master
 			currentInstance = master.applicationNodeType
-			currentMaster.slaveCommandSubjects = make(map[string]string)
-			currentMaster.workers = make(map[string]WorkerInterface)
+			currentMaster.slaveCommandSubjects = make(map[NodeIdType]SubjectType)
 			ciMux.Unlock()
 		} else {
 			currentSlave = slave
@@ -167,7 +133,7 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 	} else if currentMaster != nil {
 		err = currentMaster.startServices()
 	}
-	if  err != nil {
+	if err != nil {
 		logger.Fatal(err)
 	}
 	currentInstance.logger.Info("AppNode instance started...")
@@ -178,20 +144,19 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 }
 
 
-func (node *applicationNodeType) NodeId() string {
-	return string(node.config.NodeName)
+
+func (node *applicationNodeType) NodeId() NodeIdType {
+	return node.config.NodeId
 }
 
-func (node applicationNodeType) commandSubject(id string) string {
-	return fmt.Sprintf("COMMAND/%v",id)
+func (node applicationNodeType) commandSubject(id NodeIdType) SubjectType {
+	return SubjectType(fmt.Sprintf("COMMAND/%v", id))
 }
-
-
 
 func (node *applicationNodeType) connectToNATS() (err error) {
 	conn, err := nats.Connect(
 		node.config.NATSEndpoint,
-		nats.Name(string(node.config.NodeName)),
+		nats.Name(string(node.config.NodeId)),
 	)
 	if err != nil {
 		err = errors.Wrapf(err, "could not connect to NATS at '%v'", node.config.NATSEndpoint)
@@ -209,55 +174,14 @@ func (node *applicationNodeType) connectToNATS() (err error) {
 }
 
 
+func (c stringDerivedType) String() string {
+	return string(c)
+}
 
 
-
-
-/*
-func (node ApplicationNodeType) OpenChannel(tableId, splitId int64) {
-	num := int(math.Remainder(float64(splitId), float64(len(node.slaves))))
-	index := 0
-	for _, v := range node.slaves {
-		if index == num {
-			resp := new(CommandMessageType)
-			err := node.encodedConn.Request(
-				v.CommandSubject,
-				CommandMessageType{
-					Command: categorySplitOpen,
-					Params: map[CommandMessageParamType]interface{}{
-						"tableInfoId": tableId,
-						"splitId":     splitId,
-					},
-				},
-				resp,
-				nats.DefaultTimeout,
-			)
-
-			err = node.encodedConn.Flush()
-
-			if err = node.encodedConn.LastError(); err != nil {
-
-			}
-			subj := resp.ParamString("workerSubject","")
-			_= subj
-			break
-		}
-		index++
-	}
+func (s stringDerivedType) IsEmpty() bool {
+	return s == ""
 
 }
-*/
 
-/*
-func (node *ApplicationNodeType) Finish() (err error) {
-	if node.closers != nil {
-		for _, c := range node.closers {
-			err = c.Close()
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return
-}
-*/
+

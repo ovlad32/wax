@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"github.com/goinggo/tracelog"
 	"github.com/ovlad32/wax/hearth/handling/sparsebitset"
+	"github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
-	"github.com/sirupsen/logrus"
 )
+
 type BackendDatabaseType struct {
 	Type     string `json:"type"`
 	Host     string `json:"host"`
@@ -19,32 +20,31 @@ type BackendDatabaseType struct {
 
 type AstraConfigType struct {
 	BackendDatabases        []BackendDatabaseType `json:"be-databases"`
-	AstraH2Host             string `json:"astra-h2-host"`
-	AstraH2Port             string `json:"astra-h2-port"`
-	AstraH2Login            string `json:"astra-h2-login"`
-	AstraH2Password         string `json:"astra-h2-password"`
-	AstraH2Database         string `json:"astra-h2-database"`
-	AstraDumpPath           string `json:"astra-dump-path"`
-	AstraDataGZip           bool   `json:"astra-data-gzip"`
-	AstraColumnSeparator    byte   `json:"astra-column-byte-separator"`
-	AstraLineSeparator      byte   `json:"astra-line-byte-separator"`
-	BitsetPath              string `json:"bitset-path"`
-	KVStorePath             string `json:"kv-store-path"`
-	AstraReaderBufferSize   int    `json:"astra-reader-buffer-size"`
-	TableWorkers            int    `json:"table-workers"`
-	CategoryWorkersPerTable int    `json:"category-worker-per-table"`
-	CategoryDataChannelSize int    `json:"category-data-channel-size"`
-	RawDataChannelSize      int    `json:"raw-data-channel-size"`
-	EmitRawData             bool   `json:"emit-raw-data"`
-	EmitHashValues          bool   `json:"emit-hash-data"`
-	BuildBinaryDump         bool   `json:"build-binary-dump"`
-	SpeedTickTimeSec        int    `json:"speed-tick-time-sec"`
-	MemUsageTickTimeSec     int    `json:"memory-usage-tick-time-sec"`
-	LogBaseFile             string `json:"log-base-file"`
-	LogBaseFileKeepDay      int    `json:"log-base-file-keep-day"`
+	AstraH2Host             string                `json:"astra-h2-host"`
+	AstraH2Port             string                `json:"astra-h2-port"`
+	AstraH2Login            string                `json:"astra-h2-login"`
+	AstraH2Password         string                `json:"astra-h2-password"`
+	AstraH2Database         string                `json:"astra-h2-database"`
+	AstraDumpPath           string                `json:"astra-dump-path"`
+	AstraDataGZip           bool                  `json:"astra-data-gzip"`
+	AstraColumnSeparator    byte                  `json:"astra-column-byte-separator"`
+	AstraLineSeparator      byte                  `json:"astra-line-byte-separator"`
+	BitsetPath              string                `json:"bitset-path"`
+	KVStorePath             string                `json:"kv-store-path"`
+	AstraReaderBufferSize   int                   `json:"astra-reader-buffer-size"`
+	TableWorkers            int                   `json:"table-workers"`
+	CategoryWorkersPerTable int                   `json:"category-worker-per-table"`
+	CategoryDataChannelSize int                   `json:"category-data-channel-size"`
+	RawDataChannelSize      int                   `json:"raw-data-channel-size"`
+	EmitRawData             bool                  `json:"emit-raw-data"`
+	EmitHashValues          bool                  `json:"emit-hash-data"`
+	BuildBinaryDump         bool                  `json:"build-binary-dump"`
+	SpeedTickTimeSec        int                   `json:"speed-tick-time-sec"`
+	MemUsageTickTimeSec     int                   `json:"memory-usage-tick-time-sec"`
+	LogBaseFile             string                `json:"log-base-file"`
+	LogBaseFileKeepDay      int                   `json:"log-base-file-keep-day"`
 	// Runtime references
 	Logger *logrus.Logger
-
 }
 
 func ReadConfig() (result *AstraConfigType, err error) {

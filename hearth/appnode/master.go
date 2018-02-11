@@ -1,14 +1,13 @@
 package appnode
 
 import (
+	"context"
+	"github.com/ovlad32/wax/hearth"
+	"github.com/ovlad32/wax/hearth/repository"
 	"github.com/pkg/errors"
 	"os"
 	"os/signal"
-	"context"
-	"github.com/ovlad32/wax/hearth/repository"
-	"github.com/ovlad32/wax/hearth"
 )
-
 
 const masterCommandSubject = "COMMAND.MASTER"
 
@@ -19,7 +18,7 @@ func (node *masterApplicationNodeType) startServices() (err error) {
 		return err
 	}
 
-	err = node.initNatsService()
+	err = node.initNATSService()
 
 	if err != nil {
 		return err

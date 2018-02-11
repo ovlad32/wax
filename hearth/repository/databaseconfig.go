@@ -5,10 +5,7 @@ import (
 	"github.com/ovlad32/wax/hearth/dto"
 )
 
-
-
-
-func databaseConfig(ctx context.Context, where  string, args... interface{}) (result []*dto.DatabaseConfigType, err error) {
+func databaseConfig(ctx context.Context, where string, args ...interface{}) (result []*dto.DatabaseConfigType, err error) {
 	result = make([]*dto.DatabaseConfigType, 0)
 
 	query := "SELECT " +
@@ -71,9 +68,9 @@ func DatabaseConfigAll(ctx context.Context) (result []*dto.DatabaseConfigType, e
 
 func DatabaseConfigById(Id int) (ctx context.Context, result *dto.DatabaseConfigType, err error) {
 	res, err := databaseConfig(ctx,
-	" WHERE ID = ?",
+		" WHERE ID = ?",
 		Id,
-		)
+	)
 
 	if err == nil && len(res) > 0 {
 		result = res[0]

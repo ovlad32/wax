@@ -1,12 +1,11 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"github.com/ovlad32/wax/hearth/dto"
 	"github.com/ovlad32/wax/hearth/handling/nullable"
-	"context"
 )
-
 
 func MetadataSeqId() (id int64, err error) {
 	err = iDb.QueryRow("select nextval('META_DATA_SEQ')").Scan(&id)
@@ -16,9 +15,8 @@ func MetadataSeqId() (id int64, err error) {
 	return
 }
 
-
 func PutMetadata(ctx context.Context, m *dto.MetadataType) (err error) {
-	newOne := false;
+	newOne := false
 	if !m.Id.Valid() {
 		var id int64
 		id, err = MetadataSeqId()
@@ -34,9 +32,9 @@ func PutMetadata(ctx context.Context, m *dto.MetadataType) (err error) {
 		m.Version,
 		m.DatabaseConfigId,
 	}
-	statement := `merge into metadata (id, index, version, database_config) key(id) `+data.valuePlaceholders()
+	statement := `merge into metadata (id, index, version, database_config) key(id) ` + data.valuePlaceholders()
 
-	_, err = ExecContext(ctx,statement,data...)
+	_, err = ExecContext(ctx, statement, data...)
 	if err != nil {
 		if newOne {
 			m.Id = nullable.NullInt64{}
@@ -47,7 +45,7 @@ func PutMetadata(ctx context.Context, m *dto.MetadataType) (err error) {
 	return
 }
 
-func metadata(ctx context.Context, where string,args...interface{} ) (result []*dto.MetadataType, err error) {
+func metadata(ctx context.Context, where string, args ...interface{}) (result []*dto.MetadataType, err error) {
 	result = make([]*dto.MetadataType, 0)
 	query := "SELECT " +
 		" ID" +
@@ -59,8 +57,8 @@ func metadata(ctx context.Context, where string,args...interface{} ) (result []*
 	if where != "" {
 		query = query + where
 	}
-//	query = query + " ORDER BY ID"
-	rws, err := QueryContext(ctx,query,args...)
+	//	query = query + " ORDER BY ID"
+	rws, err := QueryContext(ctx, query, args...)
 	if err != nil {
 		return
 	}
@@ -84,8 +82,8 @@ func metadata(ctx context.Context, where string,args...interface{} ) (result []*
 func HighestDatabaseConfigVersion(ctx context.Context, DatabaseConfigId uint) (result nullable.NullInt64, err error) {
 	err = QueryRowContext(ctx,
 		`select max(version) from metadata where database_config_id = ?`,
-			varray{DatabaseConfigId},
-			).Scan(result)
+		varray{DatabaseConfigId},
+	).Scan(result)
 	return
 }
 
@@ -123,7 +121,7 @@ func MetadataById(ctx context.Context, metadataId int) (result *dto.MetadataType
 	results, err := metadata(
 		ctx,
 		" WHERE ID = ?",
-			metadataId,
+		metadataId,
 	)
 	if err == nil && len(results) > 0 {
 		result = results[0]

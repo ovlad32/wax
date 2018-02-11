@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"github.com/goinggo/tracelog"
 	"github.com/ovlad32/wax/hearth/handling/nullable"
+	"github.com/ovlad32/wax/hearth/misc"
 	"io/ioutil"
 	"path/filepath"
 	"strconv"
-	"github.com/ovlad32/wax/hearth/misc"
 )
 
 func (ci *ColumnInfoType) FindContentFeatureByStringKey(key string, initFunc func() *ContentFeatureType,
@@ -116,15 +116,15 @@ func (c ColumnInfoType) GoString() (result string) {
 	return fmt.Sprintf("ColumnInfo[id:%v,name:%v]", c.Id.Value(), c.ColumnName.Value())
 }
 
-func (c ColumnInfoType) TableInfoReference() (*TableInfoType) {
+func (c ColumnInfoType) TableInfoReference() *TableInfoType {
 	return c.TableInfo
 }
 
-func (c ColumnInfoListType) ColumnList() (ColumnInfoListType){
+func (c ColumnInfoListType) ColumnList() ColumnInfoListType {
 	return c
 }
-func (c ColumnInfoListType) TableInfoReference() (*TableInfoType){
-	if c == nil || len(c)==0 {
+func (c ColumnInfoListType) TableInfoReference() *TableInfoType {
+	if c == nil || len(c) == 0 {
 		return nil
 	}
 	return c[0].TableInfo
@@ -132,15 +132,15 @@ func (c ColumnInfoListType) TableInfoReference() (*TableInfoType){
 
 func (c ColumnInfoListType) ColumnPositionFlagsAs(flag misc.PositionBitType) (result []bool, err error) {
 	if c == nil {
-		err =  fmt.Errorf("column list is not initialized")
+		err = fmt.Errorf("column list is not initialized")
 		return
 	}
 	if len(c) == 0 {
-		err =  fmt.Errorf("column list is empty")
+		err = fmt.Errorf("column list is empty")
 		return
 	}
-	var table  *TableInfoType
-	for index:=0; index<len(c); index ++ {
+	var table *TableInfoType
+	for index := 0; index < len(c); index++ {
 		if table == nil {
 			table = c[index].TableInfoReference()
 			if table == nil {
@@ -151,22 +151,22 @@ func (c ColumnInfoListType) ColumnPositionFlagsAs(flag misc.PositionBitType) (re
 			if c[index].TableInfoReference() == nil {
 				err = fmt.Errorf("reference to parent table is not initialized")
 				return
-			} else if  c[index].TableInfoReference() != table {
-				err = fmt.Errorf("column %v has not been found in table %v", c[index] , table)
+			} else if c[index].TableInfoReference() != table {
+				err = fmt.Errorf("column %v has not been found in table %v", c[index], table)
 				return nil, err
 			}
 		}
 	}
-	positions := make([]int,0,len(c))
+	positions := make([]int, 0, len(c))
 	tableColumnList := table.ColumnList()
-	outer:
-	for index:=0;index<len(tableColumnList); index++{
+outer:
+	for index := 0; index < len(tableColumnList); index++ {
 		for _, column := range c {
 			if tableColumnList[index].Id.Value() == column.Id.Value() {
-				positions = append(positions,index)
+				positions = append(positions, index)
 			}
 			if len(positions) == cap(positions) {
-				break outer;
+				break outer
 			}
 		}
 	}
@@ -176,11 +176,8 @@ func (c ColumnInfoListType) ColumnPositionFlagsAs(flag misc.PositionBitType) (re
 		return
 	}
 
-	return misc.PositionFlagsAs(flag,len(tableColumnList),positions...),nil
+	return misc.PositionFlagsAs(flag, len(tableColumnList), positions...), nil
 }
-
-
-
 
 func (c *ColumnInfoType) ResetBitset(contentType BitsetContentType) {
 	if c.ContentFeatures != nil {

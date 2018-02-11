@@ -1,9 +1,9 @@
 package dto
 
 import (
-	"strings"
 	"github.com/ovlad32/wax/hearth/handling/nullable"
 	"strconv"
+	"strings"
 )
 
 type FusionColumnGroupType struct {
@@ -13,30 +13,27 @@ type FusionColumnGroupType struct {
 	RowCount    nullable.NullInt64
 }
 
-type FusionColumnGroupListType []*FusionColumnGroupType;
-
-
+type FusionColumnGroupListType []*FusionColumnGroupType
 
 type FusionColumnType struct {
 	SourceColumnPosition int
-	ColumnCount int
+	ColumnCount          int
 }
 
 type FusionColumnListType []*FusionColumnType
 
-
-func (f FusionColumnListType) String() (result string)  {
+func (f FusionColumnListType) String() (result string) {
 	if f == nil || len(f) == 0 {
 		return
 	}
 
-	temp := make([]string,0,len(f))
-	for _,v := range f  {
+	temp := make([]string, 0, len(f))
+	for _, v := range f {
 		temp = append(temp,
 			strconv.Itoa(v.SourceColumnPosition)+":"+strconv.Itoa(v.ColumnCount),
 		)
 	}
-	return strings.Join(temp,"|")
+	return strings.Join(temp, "|")
 }
 
 /*

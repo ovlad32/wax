@@ -3,23 +3,33 @@ package appnode
 import (
 	"fmt"
 	"github.com/nats-io/go-nats"
-	"github.com/sirupsen/logrus"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
+
+
+const (
+	categorySplitOpen   CommandType = "SPLIT.CREATE"
+	categorySplitOpened CommandType = "SPLIT.CREATED"
+	categorySplitClose  CommandType = "SPLIT.CLOSE"
+	categorySplitClosed CommandType = "SPLIT.CLOSED"
+)
+
+const (
+	tableInfoIdParam CommandMessageParamType = "tableInfoId"
+	splitIdParam     CommandMessageParamType = "splitId"
+)
+
 
 type categorySplitWorker struct {
 	basicWorker
-	enc *nats.EncodedConn
+	enc    *nats.EncodedConn
 	logger *logrus.Logger
 }
-const (
-	tableInfoIdParam CommandMessageParamType = "tableInfoId"
-	splitIdParam CommandMessageParamType = "splitId"
-)
 
 func (agent *categorySplitWorker) subscriptionFunc() func(msg nats.Msg) {
- 	return func (msg nats.Msg) {
- 		panic("not implemented yet")
+	return func(msg nats.Msg) {
+		panic("not implemented yet")
 	}
 }
 
@@ -31,27 +41,26 @@ func newCategorySplitWorker(
 ) (result *categorySplitWorker, err error) {
 
 	worker := &categorySplitWorker{
-		basicWorker:basicWorker{
-			encodedConn:enc,
+		basicWorker: basicWorker{
+			encodedConn: enc,
 		},
-		logger:logger,
+		logger: logger,
 	}
 
-
-	tableInfoId :=  message.ParamInt64(tableInfoIdParam,-1)
-	splitId :=  message.ParamInt64(splitIdParam,-1)
+	tableInfoId := message.ParamInt64(tableInfoIdParam, -1)
+	splitId := message.ParamInt64(splitIdParam, -1)
 	if tableInfoId == -1 {
-		err = fmt.Errorf("%v == -1",tableInfoIdParam)
+		err = fmt.Errorf("%v == -1", tableInfoIdParam)
 		return
 	}
 	if splitId == -1 {
-		err = fmt.Errorf("%v == -1",splitIdParam)
+		err = fmt.Errorf("%v == -1", splitIdParam)
 		logger.Error(err)
 		return
 	}
 
-	subjectName := fmt.Sprintf("SPLIT/%v/%v",tableInfoId,splitId)
-	worker.subscriptions = make([]*nats.Subscription,1)
+	subjectName := fmt.Sprintf("SPLIT/%v/%v", tableInfoId, splitId)
+	worker.subscriptions = make([]*nats.Subscription, 1)
 
 	worker.subscriptions[0], err = enc.Subscribe(
 		subjectName,
@@ -90,9 +99,7 @@ func newCategorySplitWorker(
 		worker.subscriptions[0].Unsubscribe()
 		worker.subscriptions = nil
 	}
-	worker.id = subjectName
+	worker.id = SubjectType(subjectName)
 	result = worker
 	return
 }
-
-

@@ -1,31 +1,30 @@
 package categorysplit
 
 import (
-	"github.com/ovlad32/wax/hearth/dto"
-	"github.com/ovlad32/wax/hearth/process/dump"
+	"bytes"
 	"context"
 	"fmt"
-	"bytes"
+	"github.com/ovlad32/wax/hearth/dto"
 	"github.com/ovlad32/wax/hearth/handling"
-	"strings"
+	"github.com/ovlad32/wax/hearth/misc"
+	"github.com/ovlad32/wax/hearth/process/dump"
 	"github.com/ovlad32/wax/hearth/repository"
 	"runtime"
+	"strings"
 	"time"
-	"github.com/ovlad32/wax/hearth/misc"
 )
 
 type channel interface{}
 type batchConsumer interface {
-	CreateChannel(int64,int64) (channel, error)
+	CreateChannel(int64, int64) (channel, error)
 	Transfer(channel channel, data []byte) (err error)
 	CloseChannel(c channel) (err error)
 }
 
 type ConfigType struct {
 	DumpReaderConfig *dump.DumperConfigType
-	Log handling.Logger
+	Log              handling.Logger
 }
-
 
 func validateCategorySplitConfig(cfg *ConfigType) (err error) {
 	if cfg == nil {
@@ -39,16 +38,16 @@ type CategorySplitterType struct {
 	config ConfigType
 }
 
-func NewCategorySplitter(cfg *ConfigType) (splitter *CategorySplitterType,err error) {
+func NewCategorySplitter(cfg *ConfigType) (splitter *CategorySplitterType, err error) {
 	//TODO: fill me
 	err = validateCategorySplitConfig(cfg)
 	if err != nil {
-		err = fmt.Errorf("coult not create a new category splitter: %v",err)
+		err = fmt.Errorf("coult not create a new category splitter: %v", err)
 		return
 	}
 
 	splitter = &CategorySplitterType{
-		config:*cfg,
+		config: *cfg,
 	}
 
 	return
@@ -58,38 +57,34 @@ func NewCategorySplitter(cfg *ConfigType) (splitter *CategorySplitterType,err er
 type rowCategoryData [][]byte
 
 func newRowCategoryData(size int) (result rowCategoryData) {
-	result = make(rowCategoryData,size)
+	result = make(rowCategoryData, size)
 	return
 }
 
 func (c rowCategoryData) Copy(data [][]byte) {
 	for index := range data {
-		c[index] = make([]byte,len(data[index]))
-		copy(c[index],data[index])
+		c[index] = make([]byte, len(data[index]))
+		copy(c[index], data[index])
 	}
 	return
 }
 
-func (c rowCategoryData) Equal(data [][]byte) bool{
-
+func (c rowCategoryData) Equal(data [][]byte) bool {
 
 	if len(data) != len(c) {
 		return false
 	}
 
 	for index := range c {
-		if !bytes.Equal(c[index],data[index]) {
+		if !bytes.Equal(c[index], data[index]) {
 			return false
 		}
 	}
 	return true
 }
 
-
-
-
-func (c rowCategoryData) String(separator... byte) (result string){
-	chunks:= make([]string,len(c))
+func (c rowCategoryData) String(separator ...byte) (result string) {
+	chunks := make([]string, len(c))
 	for index := range c {
 		chunks[index] = string(c[index])
 	}
@@ -102,7 +97,6 @@ func (c rowCategoryData) String(separator... byte) (result string){
 		string(separator),
 	)
 }
-
 
 /*
 type splitDumpFileType struct{
@@ -218,12 +212,11 @@ func (b *splitDumpFileType) FlushToTempFile() (err error) {
 
 */
 
-
 func (splitter CategorySplitterType) SplitFile(ctx context.Context,
 	pathToFile string,
 	categoryColumnListInterface dto.ColumnListInterface,
 	consumer batchConsumer,
-		) (err error){
+) (err error) {
 	var sourceTable *dto.TableInfoType
 	counter := make(map[string]*sliceWriterType)
 
@@ -232,7 +225,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context,
 			if closer != nil {
 				closer.Close()
 			}
-			delete(counter,key)
+			delete(counter, key)
 		}
 	}
 
@@ -241,27 +234,27 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context,
 		return err
 	}
 
-	splitColumns := categoryColumnListInterface.ColumnList();
-	if len(splitColumns ) == 0 {
+	splitColumns := categoryColumnListInterface.ColumnList()
+	if len(splitColumns) == 0 {
 		err = fmt.Errorf("parameter 'categoryColumnList' is empty")
 		return err
 	}
 
-	sourceTable  = splitColumns [0].TableInfo
+	sourceTable = splitColumns[0].TableInfo
 
-	categorySplit :=&dto.CategorySplitType{
-		Table: sourceTable ,
-		CategorySplitColumns: make(dto.CategorySplitColumnListType,0,len(splitColumns)),
-		Status:"n",
+	categorySplit := &dto.CategorySplitType{
+		Table:                sourceTable,
+		CategorySplitColumns: make(dto.CategorySplitColumnListType, 0, len(splitColumns)),
+		Status:               "n",
 	}
 
-	repository.PutCategorySplit(ctx,categorySplit)
+	repository.PutCategorySplit(ctx, categorySplit)
 
-	slitColumnMap := make(map[*dto.ColumnInfoType]*dto.CategorySplitColumnType);
+	slitColumnMap := make(map[*dto.ColumnInfoType]*dto.CategorySplitColumnType)
 
 	tableColumns := sourceTable.ColumnList()
 
-	for position,column := range splitColumns {
+	for position, column := range splitColumns {
 		splitColumn := &dto.CategorySplitColumnType{
 			Column:        column,
 			Position:      position,
@@ -269,13 +262,11 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context,
 		}
 		slitColumnMap[column] = splitColumn
 		categorySplit.CategorySplitColumns = append(categorySplit.CategorySplitColumns, splitColumn)
-		err = repository.PutCategorySplitColumn(ctx,splitColumn)
+		err = repository.PutCategorySplitColumn(ctx, splitColumn)
 		if err != nil {
 			return err
 		}
 	}
-
-
 
 	tableColumnCount := len(tableColumns)
 
@@ -298,7 +289,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context,
 		original []byte,
 	) (err error) {
 		select {
-		case _ = <- timer.C:
+		case _ = <-timer.C:
 			var stats runtime.MemStats
 			runtime.ReadMemStats(&stats)
 			//fmt.Println(stats)
@@ -306,11 +297,11 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context,
 		default:
 		}
 		categoryColumnCount := 0
-		if len(rowFields) != tableColumnCount  {
-			err = fmt.Errorf("column count mismach given: %v, expected %v",len(rowFields),tableColumnCount)
+		if len(rowFields) != tableColumnCount {
+			err = fmt.Errorf("column count mismach given: %v, expected %v", len(rowFields), tableColumnCount)
 			return
 		}
-		for columnNumber  := range sourceTable.Columns {
+		for columnNumber := range sourceTable.Columns {
 			if splitPositions[columnNumber] {
 				currentRowCategoryData[categoryColumnCount] = rowFields[columnNumber]
 				categoryColumnCount++
@@ -318,10 +309,10 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context,
 		}
 
 		if lastRowCategoryData != nil && lastRowCategoryData.Equal(currentRowCategoryData) {
-			_,err = currentDumpWriter.Write(original)
+			_, err = currentDumpWriter.Write(original)
 			if err != nil {
 				err = fmt.Errorf("could not write %v line to a slice: %v",
-					sourceTable ,
+					sourceTable,
 					err,
 				)
 				return err
@@ -331,23 +322,21 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context,
 			var found bool
 			if currentDumpWriter, found = counter[key]; !found {
 				rowData := &dto.CategorySplitDataType{
-					CategorySplit:categorySplit,
-					CategorySplitId:categorySplit.Id,
-					Data:key,
+					CategorySplit:   categorySplit,
+					CategorySplitId: categorySplit.Id,
+					Data:            key,
 				}
-				err = repository.PutCategorySplitDataType(ctx,rowData)
-				if err!=nil {
-					err =fmt.Errorf("could not persist CategorySplitDataType:%v",err)
+				err = repository.PutCategorySplitDataType(ctx, rowData)
+				if err != nil {
+					err = fmt.Errorf("could not persist CategorySplitDataType:%v", err)
 					return err
 				}
 
-				currentDumpWriter,err = newSliceWriter(
+				currentDumpWriter, err = newSliceWriter(
 					consumer,
 					sourceTable.Id.Value(),
 					rowData.Id.Value(),
 				)
-
-
 
 				/*currentDumpWriter.outputStream, err =
 					splitter.config.StreamFactory.OpenStream(
@@ -361,7 +350,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context,
 					err =fmt.Errorf("could not create new slice TableInfo :%v",err)
 					return err
 				}
-	*/
+				*/
 
 				counter[key] = currentDumpWriter
 			}
@@ -369,7 +358,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context,
 
 			if err != nil {
 				err = fmt.Errorf("could not write %v line to a slice: %v",
-					sourceTable ,
+					sourceTable,
 					err,
 				)
 				return err
@@ -377,13 +366,11 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context,
 
 			lastRowCategoryData.Copy(currentRowCategoryData)
 
-
-
 		}
 		return
 	}
 
-	dumper, err  := dump.NewDumper(dumperConfig)
+	dumper, err := dump.NewDumper(dumperConfig)
 	if err != nil {
 		return
 	}
@@ -399,7 +386,7 @@ func (splitter CategorySplitterType) SplitFile(ctx context.Context,
 	closeAll()
 
 	if err != nil {
-//		tracelog.Errorf(err, packageName, funcName, "Error while reading table %v in line #%v ", targetTable, linesRead)
+		//		tracelog.Errorf(err, packageName, funcName, "Error while reading table %v in line #%v ", targetTable, linesRead)
 		return
 	} else {
 		//tracelog.Info(packageName, funcName, "Table %v processed. %v lines have been read", targetTable, linesRead)

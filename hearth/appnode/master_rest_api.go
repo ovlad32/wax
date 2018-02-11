@@ -6,11 +6,6 @@ import (
 	"time"
 	"net/http"
 	"github.com/pkg/errors"
-	"context"
-	"github.com/nats-io/go-nats"
-	"os"
-	"bufio"
-	"io"
 )
 
 
@@ -34,6 +29,8 @@ func (node *masterApplicationNodeType) CategorySplitHandlerFunc() func (http.Res
 	}
 }
 
+
+
 func (node masterApplicationNodeType) copyfileHandlerFunc() func (http.ResponseWriter,*http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -51,7 +48,14 @@ func (node masterApplicationNodeType) copyfileHandlerFunc() func (http.ResponseW
 			return
 		}
 
+		sourceNodeId:= r.FormValue("sourceNodeId")
 
+		if !found || sourceNodeId == "" {
+			err := errors.New("sourceNodeId is empty")
+			node.logger.Error(err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		//targetFile, found := vars["targetFile"]
 		targetFile:= r.FormValue("targetFile")
 
@@ -64,33 +68,68 @@ func (node masterApplicationNodeType) copyfileHandlerFunc() func (http.ResponseW
 
 
 		//targetNode, found := vars["targetNode"]
-		targetNode:= r.FormValue("targetNode")
-		if !found || targetNode == "" {
-			err := errors.New("targetNode is empty")
+		targetNodeId:= r.FormValue("targetNodeId")
+		if !found || targetNodeId == "" {
+			err := errors.New("targetNodeId is empty")
 			node.logger.Error(err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		subj,err := node.copyfile(context.Background(),sourceFile,targetNode,targetFile);
+		subj,err := node.copyfile(sourceNodeId,sourceFile,targetNodeId,targetFile);
 		node.logger.Info(subj);
 		if err!= nil {
 			node.logger.Error(err);
 		}
+		if err != nil {
+
+		}
+
+		fmt.Fprint(w,"ok")
+
 
 		return
 	}
 }
 
-func (node masterApplicationNodeType) copyfile(ctx context.Context, sourceFile, targetNode, targetFile string) (
-	subject string,err error)  {
-
-	subs := node.commandSubject(targetNode)
-	if subs == "" {
-		err= errors.Errorf("subs == nil ")
+func (node masterApplicationNodeType) copyfile(
+	sourceNodeId,
+	sourceFile,
+	targetNode,
+	targetFile string,
+	) (subject string,err error)  {
+/*
+	//subs := node.commandSubject(targetNode)
+	entry,found :=  node.slaveCommandSubjects[targetNode]
+	if !found {
+		err= errors.Errorf("entry !found")
 		node.logger.Error(err)
 		return
 	}
+	if entry.subject == "" {
+		err= errors.Errorf("entry.subject== nil ")
+		node.logger.Error(err)
+		return
+	}
+
+	fileStats,err := os.Stat(sourceFile)
+	if err != nil {
+		err = errors.Wrapf(err,"could not get source file information: %v",sourceFile)
+		node.logger.Error(err)
+		return
+	}
+	if fileStats.Size() == 0 {
+		err = errors.Errorf("Source file is empty: %v",sourceFile)
+		node.logger.Error(err)
+		return
+	}
+
+	file, err := os.Open(sourceFile)
+	if err != nil {
+		node.logger.Error(err)
+		return
+	}
+
 
 	response := new(CommandMessageType)
 	node.logger.Info(subs)
@@ -122,56 +161,121 @@ func (node masterApplicationNodeType) copyfile(ctx context.Context, sourceFile, 
 	}
 
 	subject =  response.ParamString(workerSubjectParam,"")
+	ctx,entry.cancelFunc := context.WithCancel(context.Background())
 
-	file, err := os.Open(sourceFile)
-	if err != nil {
-		node.logger.Error(err)
-		return
-	}
-	buf := bufio.NewReaderSize(file,10*1024)
-	for {
-		var data []byte
-		var eof bool
-		_, err = buf.Read(data);
-		if err != nil {
-			if err != io.EOF {
-				//todo:
+	go func () {
+
+		buf := bufio.NewReader(file)
+
+
+		{
+			emptyMsg := &CommandMessageType{
+				Command: copyFileData,
+				Params: CommandMessageParamMap{
+					copyFileDataParam: make([]byte,0),
+					copyFileEOFParam:  true,
+				},
+			}
+			b, err := node.encodedConn.Enc.Encode(subject,emptyMsg)
+			fmt.Println(int64(len(b)),len(b),node.encodedConn.Conn.MaxPayload(),err)
+		}
+
+		var readBuffer []byte
+		var dataSizeAdjusted = false
+		var maxPayloadSize = node.encodedConn.Conn.MaxPayload()
+
+		if dataSizeAdjusted = fileStats.Size() < maxPayloadSize/2; dataSizeAdjusted {
+			node.logger.Warnf("readBuffer allocated to the size of the sourceFile %v",fileStats.Size())
+			readBuffer = make([]byte, fileStats.Size())
+		} else {
+			var adjustment int64
+			adjustment, dataSizeAdjusted = node.payloadSizeAdjustments[copyFileData]
+			readBuffer = make([]byte, maxPayloadSize - adjustment)
+		}
+
+
+		for {
+			var eof bool
+			readBytes, err := buf.Read(readBuffer);
+			if err != nil {
+				if err != io.EOF {
+					//todo:
+					node.logger.Error(err)
+					return
+				} else {
+					eof = true
+				}
+			}
+
+			replica := make([]byte, readBytes)
+			copy(replica, readBuffer[:readBytes])
+
+			message := &CommandMessageType{
+				Command: copyFileData,
+				Params: CommandMessageParamMap{
+					copyFileDataParam: replica,
+					copyFileEOFParam:  eof,
+				},
+			}
+			if !dataSizeAdjusted {
+				var adjustment int64
+				adjustment,err  = node.registerMaxPayloadSize(message)
+				if err != nil {
+					//todo:
+				}
+				newSize := maxPayloadSize + adjustment;
+				cutMessage := &CommandMessageType{
+					Command: copyFileData,
+					Params: CommandMessageParamMap{
+						copyFileDataParam: replica[0:newSize],
+						copyFileEOFParam:  eof,
+					},
+				}
+				if err = node.encodedConn.Publish(subject, cutMessage); err != nil {
+					err = errors.Wrapf(err, "could not publish copyfile cutMessage")
+					node.logger.Error(err)
+
+				}
+				replica = replica[newSize:]
+				readBuffer = readBuffer[0:newSize]
+				node.logger.Warnf("readBuffer has been cut to %v bytes",newSize)
+
+				dataSizeAdjusted = true
+				message = &CommandMessageType{
+					Command: copyFileData,
+					Params: CommandMessageParamMap{
+						copyFileDataParam: replica,
+						copyFileEOFParam:  eof,
+					},
+				}
+			}
+
+			if err = node.encodedConn.Publish(subject, message); err != nil {
+				err = errors.Wrapf(err, "could not publish copyfile message")
+				node.logger.Error(err)
+
+			}
+
+
+
+			if err = node.encodedConn.Flush(); err != nil {
+				err = errors.Wrapf(err,"could not flush copyfile message")
 				node.logger.Error(err)
 				return
-			} else {
-				eof = true
 			}
-		}
-		copied := make([]byte,len(data))
-		copy(copied,data)
 
-		message := CommandMessageType{
-			Command:copyFileData,
-			Params:CommandMessageParamMap{
-				copyFileDataParam:copied,
-				copyFileEOFParam: eof,
-			},
-		}
-		if err = node.encodedConn.Publish(subject,message);err!=nil {
-			node.logger.Error(err)
+			if err = node.encodedConn.LastError(); err != nil {
+				err = errors.Wrapf(err,"error while wiring copyfile message")
+				node.logger.Error(err)
+				return
+			}
+			if eof {
+				file.Close()
+				return
+			}
 
 		}
-
-		if err = node.encodedConn.Flush(); err !=nil {
-			node.logger.Error(err)
-			return
-		}
-
-		if err = node.encodedConn.LastError(); err!=nil {
-			node.logger.Error(err)
-			return
-		}
-		if eof {
-			file.Close()
-			return
-		}
-
-	}
+	} ()*/
 	return
 }
 

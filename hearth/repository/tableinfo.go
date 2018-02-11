@@ -15,7 +15,7 @@ func TableInfoSeqId() (id int64, err error) {
 	return
 }
 
-func tableInfo(ctx context.Context, where string, args... interface{}) (result []*dto.TableInfoType, err error) {
+func tableInfo(ctx context.Context, where string, args ...interface{}) (result []*dto.TableInfoType, err error) {
 
 	result = make([]*dto.TableInfoType, 0, 1)
 	query := `SELECT 
@@ -35,7 +35,7 @@ func tableInfo(ctx context.Context, where string, args... interface{}) (result [
 	if where != "" {
 		query = query + where
 	}
-	rows, err := QueryContext(ctx,query,args...)
+	rows, err := QueryContext(ctx, query, args...)
 	if err != nil {
 		return
 	}
@@ -103,8 +103,7 @@ func PutTableInfo(ctx context.Context, entity *dto.TableInfoType) (err error) {
 		entity.CategorySplitDataId,
 	}
 
-
-	_,err = ExecContext(ctx,
+	_, err = ExecContext(ctx,
 		`merge into table_info (
 			ID
 			,DATABASE_NAME
@@ -119,8 +118,8 @@ func PutTableInfo(ctx context.Context, entity *dto.TableInfoType) (err error) {
 			,SOURCE_SLICE_TABLE_INFO_ID
 		    ,CATEGORY_SPLIT_DATA_ID
        ) key(ID) `+data.valuePlaceholders(),
-       	data...
-       	)
+		data...,
+	)
 
 	if err != nil {
 		if newOne {
@@ -147,9 +146,9 @@ func TableInfoByMetadata(ctx context.Context, metadata *dto.MetadataType) (resul
 
 	result, err = tableInfo(
 		ctx,
-" WHERE METADATA_ID = ? and DUMPED = true",
+		" WHERE METADATA_ID = ? and DUMPED = true",
 		metadata.Id,
-		)
+	)
 
 	if err != nil {
 		return
@@ -169,8 +168,8 @@ func TableInfoById(ctx context.Context, id int) (result *dto.TableInfoType, err 
 
 	res, err := tableInfo(
 		ctx,
-	" WHERE ID = ? ",
-	id,
+		" WHERE ID = ? ",
+		id,
 	)
 
 	if err == nil && len(res) > 0 {

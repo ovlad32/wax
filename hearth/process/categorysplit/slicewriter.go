@@ -7,21 +7,20 @@ import (
 )
 
 const (
-	bufferSize int = 4*1024
-	bufferSizeLimit = 1*1024*1024*1024
+	bufferSize      int = 4 * 1024
+	bufferSizeLimit     = 1 * 1024 * 1024 * 1024
 )
-
 
 type outerType interface {
 	batchConsumer
 }
 
 type sliceWriterType struct {
-	buffer *bytes.Buffer
-	tableId int64
-	sliceId int64
-	channel interface{}
-	outer outerType
+	buffer       *bytes.Buffer
+	tableId      int64
+	sliceId      int64
+	channel      interface{}
+	outer        outerType
 	totalWritten int64
 }
 
@@ -32,14 +31,14 @@ func newSliceWriter(outer outerType, tableId, sliceId int64) (result *sliceWrite
 	}
 
 	result = &sliceWriterType{
-		buffer:bytes.NewBuffer(make([]byte,bufferSize)),
-		tableId:tableId,
-		sliceId:sliceId,
+		buffer:  bytes.NewBuffer(make([]byte, bufferSize)),
+		tableId: tableId,
+		sliceId: sliceId,
 	}
 	return
 }
 
-func (s *sliceWriterType) tryToWrite(data []byte,flush... bool) (written int, err error){
+func (s *sliceWriterType) tryToWrite(data []byte, flush ...bool) (written int, err error) {
 	written, err = s.buffer.Write(data)
 	if err == nil {
 		s.totalWritten += int64(written)
@@ -51,7 +50,7 @@ func (s *sliceWriterType) tryToWrite(data []byte,flush... bool) (written int, er
 			if err != nil {
 				return
 			}
-			return s.tryToWrite(data,false)
+			return s.tryToWrite(data, false)
 		}
 	}
 	if err != nil {
@@ -61,13 +60,13 @@ func (s *sliceWriterType) tryToWrite(data []byte,flush... bool) (written int, er
 	return
 }
 
-func (s *sliceWriterType) Write(data []byte)(written int, err error) {
+func (s *sliceWriterType) Write(data []byte) (written int, err error) {
 
 	l := int64(len(data))
-	if  l == 0 {
-		return 0,nil
+	if l == 0 {
+		return 0, nil
 	}
-	if s.totalWritten + l > bufferSizeLimit {
+	if s.totalWritten+l > bufferSizeLimit {
 		err = s.flush()
 	}
 	return s.tryToWrite(data)
@@ -76,10 +75,10 @@ func (s *sliceWriterType) Write(data []byte)(written int, err error) {
 func (s *sliceWriterType) flush() (err error) {
 	err = s.outer.Transfer(s.channel, s.buffer.Bytes())
 	if err != nil {
-		err = errors.Wrap(err,"could not write buffered data to channel")
+		err = errors.Wrap(err, "could not write buffered data to channel")
 		return
 	}
-	s.buffer.Truncate(0);
+	s.buffer.Truncate(0)
 	return
 }
 

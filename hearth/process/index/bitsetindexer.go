@@ -8,10 +8,10 @@ import (
 	"github.com/ovlad32/wax/hearth/misc"
 	dump "github.com/ovlad32/wax/hearth/process/dump"
 	"github.com/ovlad32/wax/hearth/repository"
+	"github.com/sirupsen/logrus"
 	"path"
 	"strings"
 	"time"
-	"github.com/sirupsen/logrus"
 )
 
 type BitsetIndexConfigType struct {
@@ -111,7 +111,6 @@ func (indexer *BitsetIndexerType) buildBitsets(
 
 	var splitColumnsAdded = 0
 
-
 	processRowContent := func(
 		ctx context.Context,
 		config *dump.DumperConfigType,
@@ -161,7 +160,6 @@ func (indexer *BitsetIndexerType) buildBitsets(
 
 				drop.Hash(bitsetContent.IsHashContent())
 
-
 			} else {
 				if fusionColumnList == nil {
 					fusionColumnList = make(dto.FusionColumnListType, 0, len(targetTableColumns))
@@ -199,7 +197,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 				if groups != nil && len(groups) > 0 {
 					for _, fusionColumnGroup := range groups {
 						fusionColumnGroup.RowCount = nullable.NewNullInt64(0)
-						err = repository.PutFusionColumnGroup(ctx,fusionColumnGroup)
+						err = repository.PutFusionColumnGroup(ctx, fusionColumnGroup)
 						if err != nil {
 							//TODO:
 						}
@@ -225,7 +223,6 @@ func (indexer *BitsetIndexerType) buildBitsets(
 							mappedColumnGroup := &mappedSplitColumnListType{
 								fusionColumnGroup: fusionColumnGroup,
 								splitColumns:      make(map[int]dto.ColumnInfoListType),
-
 							}
 							mappedColumnGroups[fusionColumnGroup.GroupKey] = mappedColumnGroup
 
@@ -263,7 +260,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 				mappedSplitColumns = &mappedSplitColumnListType{
 					fusionColumnGroup: fusionColumnGroup,
 					splitColumns:      make(map[int]dto.ColumnInfoListType),
-					}
+				}
 				//splitColumnInfoList := make(dto.ColumnInfoListType,0,len(fusionSplitRowData))
 				for fusionIndex, scd := range splitColumnListData {
 					if scd.splitColumnInfoList == nil {
@@ -314,7 +311,7 @@ func (indexer *BitsetIndexerType) buildBitsets(
 				}
 			}
 
-			mappedSplitColumns.rowCount ++
+			mappedSplitColumns.rowCount++
 
 			prevFusionColumnGroupKey = fusionColumnGroupKey
 			prevMappedSplitColumns = mappedSplitColumns
@@ -367,29 +364,25 @@ func (indexer *BitsetIndexerType) buildBitsets(
 		log.Printf("File %v of %v lines have been processed. Persisting bitset indexes...", pathToFile, linesRead)
 	}
 
-
 	var allColumns *dto.ColumnInfoListType
- 	if mappedColumnGroups == nil  {
+	if mappedColumnGroups == nil {
 		allColumns = &processingColumns
 	} else {
 		// making new list
-		columns := make(dto.ColumnInfoListType,0,len(processingColumns)+splitColumnsAdded)
-		columns = append(columns,processingColumns...)
-		for _,mapped := range mappedColumnGroups {
+		columns := make(dto.ColumnInfoListType, 0, len(processingColumns)+splitColumnsAdded)
+		columns = append(columns, processingColumns...)
+		for _, mapped := range mappedColumnGroups {
 			mapped.fusionColumnGroup.RowCount = nullable.NewNullInt64(int64(mapped.rowCount))
 			err = repository.PutFusionColumnGroup(ctx, mapped.fusionColumnGroup)
 			if err != nil {
 
 			}
-			for _,addedColumns := range mapped.splitColumns {
-				columns = append(columns,addedColumns...)
+			for _, addedColumns := range mapped.splitColumns {
+				columns = append(columns, addedColumns...)
 			}
 		}
 		allColumns = &columns
 	}
-
-
-
 
 	for _, column := range *allColumns {
 		for _, feature := range column.ContentFeatures {

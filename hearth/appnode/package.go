@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"runtime"
 	"sync"
+	"encoding/gob"
 )
 
 var currentInstance *applicationNodeType
@@ -16,13 +17,12 @@ var currentMaster *masterApplicationNodeType
 var currentSlave *slaveApplicationNodeType
 
 var ciMux sync.Mutex
-type stringDerivedType string
 
-type NodeIdType stringDerivedType
-type CommandType stringDerivedType
-type SubjectType stringDerivedType
+type NodeIdType string
+type CommandType string
+type SubjectType string
 
-type CommandMessageParamType stringDerivedType
+type CommandMessageParamType string
 
 
 const (
@@ -163,7 +163,12 @@ func (node *applicationNodeType) connectToNATS() (err error) {
 		node.logger.Error(err)
 		return
 	}
+
+	gob.Register(SubjectType(""))
+	gob.Register(NodeIdType(""))
+
 	node.encodedConn, err = nats.NewEncodedConn(conn, nats.GOB_ENCODER)
+
 	if err != nil {
 		err = errors.Wrap(err, "could not create encoder for NATS")
 		node.logger.Error(err)
@@ -174,14 +179,35 @@ func (node *applicationNodeType) connectToNATS() (err error) {
 }
 
 
-func (c stringDerivedType) String() string {
+func (s NodeIdType) String() string {
+	return string(s)
+}
+func (s NodeIdType) IsEmpty() bool {
+	return s == ""
+}
+
+
+func (c CommandType) String() string {
 	return string(c)
 }
-
-
-func (s stringDerivedType) IsEmpty() bool {
-	return s == ""
-
+func (c CommandType) IsEmpty() bool {
+	return c == ""
 }
 
+
+func (s SubjectType) String() string {
+	return string(s)
+}
+func (s SubjectType) IsEmpty() bool {
+	return s == ""
+}
+
+
+
+func (s CommandMessageParamType) String() string {
+	return string(s)
+}
+func (s CommandMessageParamType) IsEmpty() bool {
+	return s == ""
+}
 

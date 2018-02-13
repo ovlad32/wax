@@ -1,7 +1,6 @@
 package appnode
 
 import (
-	"fmt"
 	"github.com/nats-io/go-nats"
 	"github.com/pkg/errors"
 )
@@ -11,8 +10,8 @@ const (
 )
 
 type WorkerInterface interface {
-	Id() SubjectType
-	Subscriptions() []*nats.Subscription
+	Subject() SubjectType
+	Subscription() *nats.Subscription
 }
 
 type WorkerHolderInterface interface {
@@ -25,8 +24,8 @@ type WorkerHolderInterface interface {
 type basicWorker struct {
 	//NATS section
 	encodedConn   *nats.EncodedConn
-	subscriptions []*nats.Subscription
-	id           SubjectType
+	subscription *nats.Subscription
+	subject           SubjectType
 }
 
 func newWorkersMap() (map[SubjectType]WorkerInterface) {
@@ -34,12 +33,12 @@ func newWorkersMap() (map[SubjectType]WorkerInterface) {
 }
 
 
-func (worker basicWorker) Subscriptions() []*nats.Subscription {
-	return worker.subscriptions
+func (worker basicWorker) Subscription() *nats.Subscription {
+	return worker.subscription
 }
 
-func (worker basicWorker) Id() SubjectType {
-	return worker.id
+func (worker basicWorker) Subject() SubjectType {
+	return worker.subject
 }
 
 func (worker basicWorker) reportError(command CommandType, incoming error) (err error) {
@@ -47,9 +46,9 @@ func (worker basicWorker) reportError(command CommandType, incoming error) (err 
 		Command: command,
 		Err:     incoming,
 	}
-	if len(worker.subscriptions) > 0 {
+	if !worker.subject.IsEmpty()  {
 		errMsg.Params = CommandMessageParamMap{
-			workerSubjectParam: worker.subscriptions[0],
+			workerSubjectParam: worker.subscription,
 		}
 	}
 
@@ -75,25 +74,23 @@ func (node *slaveApplicationNodeType) AppendWorker(a WorkerInterface) {
 		if node.workers == nil {
 			node.workers = newWorkersMap()
 		}
-		node.workers[a.Id()] = a
+		node.workers[a.Subject()] = a
 		node.workerMux.Unlock()
 	} else {
 		node.workerMux.Lock()
-		node.workers[a.Id()] = a
+		node.workers[a.Subject()] = a
 		node.workerMux.Unlock()
 	}
 }
 
-func (node *slaveApplicationNodeType) FindWorkerCommandSubject(id NodeIdType) WorkerInterface {
-	return node.FindWorkerById(NodeIdType(node.commandSubject(id)))
-}
 
-func (node *slaveApplicationNodeType) FindWorkerById(id NodeIdType) WorkerInterface {
+
+func (node *slaveApplicationNodeType) FindWorkerBySubject(subject SubjectType) WorkerInterface {
 	if node.workers == nil {
 		return nil
 	}
 	node.workerMux.RLock()
-	{
+	/*{
 		for k, v := range node.workers {
 			fmt.Print(k)
 			for _, s := range v.Subscriptions() {
@@ -101,9 +98,9 @@ func (node *slaveApplicationNodeType) FindWorkerById(id NodeIdType) WorkerInterf
 			}
 			fmt.Println()
 		}
-	}
+	}*/
 
-	worker, found := node.workers[id]
+	worker, found := node.workers[subject]
 	node.workerMux.RUnlock()
 	if found {
 		return worker
@@ -111,9 +108,9 @@ func (node *slaveApplicationNodeType) FindWorkerById(id NodeIdType) WorkerInterf
 	return nil
 }
 
-func (node *slaveApplicationNodeType) RemoveWorkerById(id SubjectType) {
+func (node *slaveApplicationNodeType) RemoveWorkerBySubject(subject SubjectType) {
 	node.workerMux.Lock()
-	delete(node.workers, id)
+	delete(node.workers, subject)
 	node.workerMux.Unlock()
 }
 
@@ -122,24 +119,24 @@ func (node *slaveApplicationNodeType) CloseRegularWorker(
 	message *CommandMessageType,
 	replyCommand CommandType) (err error) {
 
-	id := message.ParamSubject(workerSubjectParam)
-	if id.IsEmpty() {
+	subject := message.ParamSubject(workerSubjectParam)
+	if subject.IsEmpty() {
 		err = errors.Errorf("Parameter %v is empty", workerSubjectParam)
 		node.logger.Error(err)
 		return err
 	}
 
-	worker := node.FindById(id)
+	worker := node.FindWorkerBySubject(subject)
 	if worker == nil {
-		err = errors.Errorf("could not find %v worker", id)
+		err = errors.Errorf("could not find %v worker", subject)
 		node.logger.Error(err)
 		return err
 	}
 
-	for _, s := range worker.Subscriptions() {
-		err = s.Unsubscribe()
+	 if worker.Subscription() != nil {
+		err = worker.Subscription().Unsubscribe()
 		if err != nil {
-			err = errors.Wrapf(err, "could not close %v worker ", id)
+			err = errors.Wrapf(err, "could not close %v worker ", worker.Subject())
 			node.logger.Error(err)
 			return err
 		}
@@ -151,10 +148,10 @@ func (node *slaveApplicationNodeType) CloseRegularWorker(
 		},
 	)
 	if err != nil {
-		err = errors.Wrapf(err, "could not publish reply of closing %v worker id", id)
+		err = errors.Wrapf(err, "could not publish reply of closing %v worker id",  worker.Subject())
 		node.logger.Error(err)
 		return err
 	}
-	node.RemoveWorkerById(id)
+	node.RemoveWorkerBySubject( worker.Subject())
 	return
 }

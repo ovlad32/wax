@@ -56,12 +56,13 @@ func (node *slaveApplicationNodeType) makeCommandSubscription() (err error) {
 		}
 
 		response := new(CommandMessageType)
+
 		err = node.encodedConn.Request(
 			masterCommandSubject,
 			&CommandMessageType{
 				Command: parishOpen,
 				Params: CommandMessageParamMap{
-					slaveCommandSubjectParam: node.commandSubscription.Subject,
+					slaveCommandSubjectParam: slaveSubject,
 					slaveIdParam:             node.NodeId(),
 				},
 			},

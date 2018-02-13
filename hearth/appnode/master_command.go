@@ -64,8 +64,10 @@ func (node *masterApplicationNodeType) commandSubscriptionFunc() func(string, st
 					slaveCommandSubject,
 					prev,
 				)
+			} else {
+				node.slaveCommandMux.RUnlock()
 			}
-			node.slaveCommandMux.RUnlock()
+			node.slaveCommandMux.Lock()
 			node.slaveCommandSubjects[slaveId] = slaveCommandSubject
 			node.slaveCommandMux.Unlock()
 			err := node.encodedConn.Publish(reply, response)

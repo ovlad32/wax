@@ -49,16 +49,6 @@ func (m CommandMessageType) ParamString(name CommandMessageParamType, defaultVal
 	return result
 }
 
-func (m CommandMessageType) ParamSubject(name CommandMessageParamType) (result SubjectType) {
-	s := m.ParamString(name,"")
-	result  = SubjectType(s)
-	return
-}
-
-func (m CommandMessageType) ParamNodeId(name CommandMessageParamType) (NodeIdType) {
-	s := m.ParamString(name,"")
-	return NodeIdType(s)
-}
 
 func (m CommandMessageType) ParamBool(name CommandMessageParamType, defaultValue bool) bool {
 	val, found := m.Params[name]
@@ -73,3 +63,32 @@ func (m CommandMessageType) ParamBool(name CommandMessageParamType, defaultValue
 	return result
 }
 
+
+
+func (m CommandMessageType) ParamSubject(name CommandMessageParamType) (result SubjectType) {
+	val, found := m.Params[name]
+	if !found {
+		return SubjectType("")
+	}
+
+	result, ok := val.(SubjectType)
+	if !ok {
+		panic(fmt.Sprintf("could not get SubjectType value from parameter named %v at command %v", name, m.Command))
+	}
+	return result
+}
+
+
+
+func (m CommandMessageType) ParamNodeId(name CommandMessageParamType) (result NodeIdType) {
+	val, found := m.Params[name]
+	if !found {
+		return NodeIdType("")
+	}
+
+	result, ok := val.(NodeIdType)
+	if !ok {
+		panic(fmt.Sprintf("could not get NodeIdType value from parameter named %v at command %v", name, m.Command))
+	}
+	return result
+}

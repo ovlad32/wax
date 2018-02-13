@@ -50,9 +50,8 @@ func newCopyFileWorker(
 	}
 
 	subjectName := fmt.Sprintf("COPYFILE/%v", nuid.Next())
-	worker.subscriptions = make([]*nats.Subscription, 1)
 
-	worker.subscriptions[0], err = enc.Subscribe(
+	worker.subscription, err = enc.Subscribe(
 		subjectName,
 		worker.subscriptionFunc(),
 	)
@@ -86,10 +85,10 @@ func newCopyFileWorker(
 		}
 		return
 	}() != nil {
-		worker.subscriptions[0].Unsubscribe()
-		worker.subscriptions = nil
+		worker.subscription.Unsubscribe()
+		worker.subscription = nil
 	}
-	worker.id = subjectName
+	worker.subject = SubjectType(subjectName)
 	result = worker
 	return
 }
@@ -97,7 +96,7 @@ func newCopyFileWorker(
 func (worker *copyFileWorker) subscriptionFunc() func(msg *CommandMessageType) {
 	return func(msg *CommandMessageType) {
 		var err error
-		worker.logger.Infof("Slave %v got command message: %v", worker.Id(), msg.Command)
+		worker.logger.Infof("Slave %v got command message: %v", worker.Subject(), msg.Command)
 		switch msg.Command {
 		case copyFileData:
 			if worker.file == nil {
@@ -154,9 +153,9 @@ func (worker *copyFileWorker) subscriptionFunc() func(msg *CommandMessageType) {
 }
 
 func (worker *copyFileWorker) unsubscribe() {
-	for _, s := range worker.Subscriptions() {
-		err := s.Unsubscribe()
-		err = errors.Wrapf(err, "could not unsubscribe from subject %v ", s.Subject)
+	if worker.subscription != nil {
+		err := worker.subscription.Unsubscribe()
+		err = errors.Wrapf(err, "could not unsubscribe from subject %v ", worker.subscription.Subject)
 		worker.logger.Error(err)
 	}
 }

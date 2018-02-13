@@ -108,7 +108,7 @@ func main() {
 			&appnode.ApplicationNodeConfigType{
 				AstraConfig:  *config,
 				NATSEndpoint: nats.DefaultURL,
-				NodeId:     "slave1",
+				NodeId:    appnode.NodeIdType(*nodeIdDirectory),
 			},
 		)
 		if err != nil {

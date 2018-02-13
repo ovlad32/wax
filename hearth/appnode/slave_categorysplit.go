@@ -60,9 +60,8 @@ func newCategorySplitWorker(
 	}
 
 	subjectName := fmt.Sprintf("SPLIT/%v/%v", tableInfoId, splitId)
-	worker.subscriptions = make([]*nats.Subscription, 1)
 
-	worker.subscriptions[0], err = enc.Subscribe(
+	worker.subscription, err = enc.Subscribe(
 		subjectName,
 		worker.subscriptionFunc(),
 	)
@@ -86,7 +85,7 @@ func newCategorySplitWorker(
 			&CommandMessageType{
 				Command: categorySplitOpened,
 				Params: map[CommandMessageParamType]interface{}{
-					workerSubjectParam: worker.subscriptions[0].Subject,
+					workerSubjectParam: worker.subscription.Subject,
 				},
 			})
 		if err != nil {
@@ -96,10 +95,10 @@ func newCategorySplitWorker(
 		}
 		return
 	} != nil {
-		worker.subscriptions[0].Unsubscribe()
-		worker.subscriptions = nil
+		worker.subscription.Unsubscribe()
+		worker.subscription = nil
 	}
-	worker.id = SubjectType(subjectName)
+	worker.subject = SubjectType(subjectName)
 	result = worker
 	return
 }

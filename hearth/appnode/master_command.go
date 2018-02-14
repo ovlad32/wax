@@ -6,9 +6,12 @@ import (
 	"github.com/pkg/errors"
 )
 
+
 func (node *masterApplicationNodeType) makeCommandSubscription() (err error) {
 
 	node.logger.Infof("Create MASTER command subscription '%v'", masterCommandSubject)
+
+	node.commandInterceptorsMap[parishOpen] = node.parishOpenFunc()
 
 	node.commandSubscription, err = node.encodedConn.Subscribe(
 		masterCommandSubject,
@@ -25,58 +28,26 @@ func (node *masterApplicationNodeType) makeCommandSubscription() (err error) {
 		err = errors.Wrap(err, "error given via NATS while making Master command subscription")
 		node.logger.Error(err)
 	}
+
+
 	node.logger.Info(
 		"Master command subscription has been created",
 	)
 	return
 }
 
+
 func (node *masterApplicationNodeType) commandSubscriptionFunc() func(string, string, *CommandMessageType) {
-
+	var err error
 	return func(subj, reply string, msg *CommandMessageType) {
+
 		node.logger.Infof("Master node command message: %v", msg.Command)
-		switch msg.Command {
-		case parishOpen:
-			slaveCommandSubject := msg.ParamSubject(slaveCommandSubjectParam)
-			if slaveCommandSubject.IsEmpty() {
-				node.logger.Warn("gotten slave command subject is empty!")
-				return
-			}
-			slaveId := msg.ParamNodeId(slaveIdParam)
-			if slaveId.IsEmpty() {
-				node.logger.Warn("gotten slaveId is empty!")
-				return
-			}
-
-			node.logger.Infof("Start registering new Slave '%v' with command subject '%v'", slaveId, slaveCommandSubject)
-
-			response := &CommandMessageType{}
-			response.Command = parishOpened
-			node.slaveCommandMux.RLock()
-			if prev, found := node.slaveCommandSubjects[slaveId]; found {
-				node.slaveCommandMux.RUnlock()
-				response.Params = CommandMessageParamMap{
-					ResubscribedParam: true,
-				}
-				node.logger.Infof(
-					"New Slave '%v' with command subject '%v' had been registered previously with '%v'",
-					slaveId,
-					slaveCommandSubject,
-					prev,
-				)
-			} else {
-				node.slaveCommandMux.RUnlock()
-			}
-			node.slaveCommandMux.Lock()
-			node.slaveCommandSubjects[slaveId] = slaveCommandSubject
-			node.slaveCommandMux.Unlock()
-			err := node.encodedConn.Publish(reply, response)
+		if invoker, found := node.commandInterceptorsMap[msg.Command];found {
+			err = invoker(reply,msg)
 			if err != nil {
-				err = errors.Wrapf(err, "could not reply of opening a new slave")
-				return
+				//TODO:
 			}
-			node.logger.Infof("A new node with command subject '%v' has been successfully registered", slaveCommandSubject)
-		default:
+		} else {
 			panic(fmt.Sprintf("%v: cannot recognize incoming message command '%v' ", masterCommandSubject, msg.Command))
 		}
 	}
@@ -112,4 +83,53 @@ func (node *masterApplicationNodeType) closeAllCommandSubscription() (err error)
 		node.logger.Warnf("MASTER command subscription has been closed")
 	}
 	return
+}
+
+
+
+func (node masterApplicationNodeType) parishOpenFunc() commandInterceptorFunc {
+	return func(reply string, msg *CommandMessageType) (err error) {
+		slaveCommandSubject := msg.ParamSubject(slaveCommandSubjectParam)
+		if slaveCommandSubject.IsEmpty() {
+			node.logger.Warn("gotten slave command subject is empty!")
+			return
+		}
+		slaveId := msg.ParamNodeId(slaveIdParam)
+		if slaveId.IsEmpty() {
+			node.logger.Warn("gotten slaveId is empty!")
+			return
+		}
+
+		node.logger.Infof("Start registering new Slave '%v' with command subject '%v'", slaveId, slaveCommandSubject)
+
+
+		params := make([]CommandMessageParamEntryType,0)
+		node.slaveCommandMux.RLock()
+		if prev, found := node.slaveCommandSubjects[slaveId]; found {
+			node.slaveCommandMux.RUnlock()
+			params = append(params, CommandMessageParamEntryType{
+				Name:ResubscribedParam,
+				Value:true,
+			});
+			node.logger.Infof(
+				"New Slave '%v' with command subject '%v' had been registered previously with '%v'",
+				slaveId,
+				slaveCommandSubject,
+				prev,
+			)
+		} else {
+			node.slaveCommandMux.RUnlock()
+		}
+		err = node.applicationNodeType.publishCommandResponse(reply, parishOpened, params...)
+		if err != nil {
+			err = errors.Wrapf(err, "could not reply of opening a new slave")
+			return
+		}
+		node.slaveCommandMux.Lock()
+		node.slaveCommandSubjects[slaveId] = slaveCommandSubject
+		node.slaveCommandMux.Unlock()
+		node.logger.Infof("A new node with command subject '%v' has been successfully registered", slaveCommandSubject)
+		return
+	}
+
 }

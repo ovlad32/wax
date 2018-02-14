@@ -3,13 +3,10 @@ package appnode
 import (
 	"context"
 	"fmt"
-	"github.com/nats-io/go-nats"
 	"github.com/ovlad32/wax/hearth/handling"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"runtime"
 	"sync"
-	"encoding/gob"
 )
 
 var currentInstance *applicationNodeType
@@ -24,6 +21,10 @@ type SubjectType string
 
 type CommandMessageParamType string
 
+type CommandMessageParamEntryType struct {
+	Name CommandMessageParamType
+	Value interface{}
+}
 
 const (
 	parishOpen   CommandType = "PARISH.OPEN"
@@ -43,33 +44,36 @@ type ApplicationNodeConfigType struct {
 	MasterRestPort int
 }
 
-type applicationNodeType struct {
-	config        ApplicationNodeConfigType
-	ctx           context.Context
-	ctxCancelFunc context.CancelFunc
 
-	encodedConn         *nats.EncodedConn
-	commandSubscription *nats.Subscription
-	//
-	//
-	logger *logrus.Logger
-}
-
-type slaveApplicationNodeType struct {
-	*applicationNodeType
-	//
-	payloadSizeAdjustments map[CommandType]int64
-	workerMux              sync.RWMutex
-	workers                map[SubjectType]WorkerInterface
-}
+type commandInterceptorFunc func(replySubject string,incomingMessage *CommandMessageType) error
 
 
-type masterApplicationNodeType struct {
-	*applicationNodeType
-	slaveCommandMux sync.RWMutex
-	slaveCommandSubjects map[NodeIdType]SubjectType
-	//TODO: CancelFunc!!!
-}
+
+type commandInterceptorsMapType map[CommandType]commandInterceptorFunc
+
+
+/*
+var interceptors commandInterceptionInterface
+	var interceptorsFound bool
+	if interceptors, interceptorsFound = node.commandInterceptorsMap[command]; interceptorsFound {
+		if interceptors.request != nil {
+			err = interceptors.request(outgoingMessage)
+			if err != nil {
+				err = errors.Wrapf(err, "could not process request message '%v' via interception handler", command)
+				node.logger.Error(err)
+				return err
+			}
+		}
+	}
+if interceptorsFound && interceptors.response != nil {
+		err = interceptors.response(incomingMessage)
+		if err != nil {
+			err = errors.Wrapf(err, "could not process response message '%v' with interception of handler", command)
+			node.logger.Error(err)
+			return err
+		}
+	}
+ */
 
 func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 	logger := cfg.AstraConfig.Logger
@@ -81,6 +85,7 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 
 	instance := &applicationNodeType{
 		config: *cfg,
+		commandInterceptorsMap:make(commandInterceptorsMapType),
 	}
 	instance.logger = logger
 
@@ -144,39 +149,6 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 }
 
 
-
-func (node *applicationNodeType) NodeId() NodeIdType {
-	return node.config.NodeId
-}
-
-func (node applicationNodeType) commandSubject(id NodeIdType) SubjectType {
-	return SubjectType(fmt.Sprintf("COMMAND/%v", id))
-}
-
-func (node *applicationNodeType) connectToNATS() (err error) {
-	conn, err := nats.Connect(
-		node.config.NATSEndpoint,
-		nats.Name(string(node.config.NodeId)),
-	)
-	if err != nil {
-		err = errors.Wrapf(err, "could not connect to NATS at '%v'", node.config.NATSEndpoint)
-		node.logger.Error(err)
-		return
-	}
-
-	gob.Register(SubjectType(""))
-	gob.Register(NodeIdType(""))
-
-	node.encodedConn, err = nats.NewEncodedConn(conn, nats.GOB_ENCODER)
-
-	if err != nil {
-		err = errors.Wrap(err, "could not create encoder for NATS")
-		node.logger.Error(err)
-		return
-	}
-	node.logger.Info("Node has been connected to NATS")
-	return
-}
 
 
 func (s NodeIdType) String() string {

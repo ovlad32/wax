@@ -7,9 +7,20 @@ import (
 	"github.com/pkg/errors"
 	"os"
 	"os/signal"
+	"sync"
 )
 
 const masterCommandSubject = "COMMAND.MASTER"
+
+
+type masterApplicationNodeType struct {
+	*applicationNodeType
+	slaveCommandMux sync.RWMutex
+	slaveCommandSubjects map[NodeIdType]SubjectType
+	//TODO: CancelFunc!!!
+}
+
+
 
 func (node *masterApplicationNodeType) startServices() (err error) {
 

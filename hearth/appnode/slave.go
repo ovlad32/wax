@@ -4,7 +4,19 @@ import (
 	"github.com/pkg/errors"
 	"os"
 	"os/signal"
+	"sync"
 )
+
+
+
+type slaveApplicationNodeType struct {
+	*applicationNodeType
+	//
+	payloadSizeAdjustments map[CommandType]int64
+	workerMux              sync.RWMutex
+	workers                map[SubjectType]WorkerInterface
+}
+
 
 func (node *slaveApplicationNodeType) startServices() (err error) {
 

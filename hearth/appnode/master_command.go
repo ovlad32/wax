@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/nats-io/go-nats"
 	"github.com/pkg/errors"
+	"github.com/nats-io/gnatsd/logger"
 )
 
 
@@ -11,7 +12,6 @@ func (node *masterApplicationNodeType) makeCommandSubscription() (err error) {
 
 	node.logger.Infof("Create MASTER command subscription '%v'", masterCommandSubject)
 
-	node.commandInterceptorsMap[parishOpen] = node.parishOpenFunc()
 
 	node.commandSubscription, err = node.encodedConn.Subscribe(
 		masterCommandSubject,
@@ -40,10 +40,9 @@ func (node *masterApplicationNodeType) makeCommandSubscription() (err error) {
 func (node *masterApplicationNodeType) commandSubscriptionFunc() func(string, string, *CommandMessageType) {
 	var err error
 	return func(subj, reply string, msg *CommandMessageType) {
-
 		node.logger.Infof("Master node command message: %v", msg.Command)
-		if invoker, found := node.commandInterceptorsMap[msg.Command];found {
-			err = invoker(reply,msg)
+		if processor, found := node.commandProcessorsMap[msg.Command];found {
+			err = processor(reply,msg)
 			if err != nil {
 				//TODO:
 			}
@@ -56,29 +55,29 @@ func (node *masterApplicationNodeType) commandSubscriptionFunc() func(string, st
 func (node *masterApplicationNodeType) closeAllCommandSubscription() (err error) {
 
 	node.slaveCommandMux.Lock()
+	defer node.slaveCommandMux.Unlock()
 	for _, subj:= range node.slaveCommandSubjects {
-		response := new(CommandMessageType)
-		err = node.encodedConn.Request(string(subj),
-			&CommandMessageType{
-				Command: parishClose,
-			},
-			response,
-			nats.DefaultTimeout,
+		response, err := node.CallCommandBySubject(
+			subj,
+			parishClose,
 		)
+
 		if err != nil {
 			node.logger.Error(err)
 		}
+
 		if response.Command != parishClosed {
-			node.logger.Error(response.Command)
+			err = errors.Errorf("Expected command '%v' got '%v'",parishClosed,response.Command)
+			node.logger.Error(err)
 		}
 	}
 	node.slaveCommandSubjects = make(map[NodeIdType]SubjectType)
-	node.slaveCommandMux.Unlock()
 	node.logger.Warnf("Slave command subscriptions have been closed")
 
 	err = node.commandSubscription.Unsubscribe()
 	if err != nil {
-
+		err = errors.Wrapf(err,"Could not unsubscribe from command subject")
+		node.logger.Error(err)
 	} else {
 		node.logger.Warnf("MASTER command subscription has been closed")
 	}
@@ -87,7 +86,7 @@ func (node *masterApplicationNodeType) closeAllCommandSubscription() (err error)
 
 
 
-func (node masterApplicationNodeType) parishOpenFunc() commandInterceptorFunc {
+func (node masterApplicationNodeType) parishOpenFunc() commandProcessorFuncType {
 	return func(reply string, msg *CommandMessageType) (err error) {
 		slaveCommandSubject := msg.ParamSubject(slaveCommandSubjectParam)
 		if slaveCommandSubject.IsEmpty() {

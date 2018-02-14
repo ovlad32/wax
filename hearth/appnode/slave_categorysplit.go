@@ -33,6 +33,33 @@ func (agent *categorySplitWorker) subscriptionFunc() func(msg nats.Msg) {
 	}
 }
 
+
+func (node *slaveApplicationNodeType) categorySplitOpenFunc() commandProcessorFuncType {
+	return func(replySubject string, incomingMessage *CommandMessageType) (err error) {
+		worker, err := newCategorySplitWorker(
+			node.encodedConn,
+			replySubject, incomingMessage,
+			node.logger,
+		)
+		if err != nil {
+			panic(err.Error())
+		}
+		node.AppendWorker(worker)
+		return
+	}
+}
+
+func (node *slaveApplicationNodeType) categorySplitCloseFunc() commandProcessorFuncType {
+	return func(replySubject string, incomingMessage *CommandMessageType) (err error) {
+		err = node.CloseRegularWorker(replySubject, incomingMessage, categorySplitClosed)
+		if err != nil {
+			panic(err.Error())
+		}
+		return
+	}
+}
+
+
 func newCategorySplitWorker(
 	enc *nats.EncodedConn,
 	replySubject string,
@@ -102,3 +129,4 @@ func newCategorySplitWorker(
 	result = worker
 	return
 }
+

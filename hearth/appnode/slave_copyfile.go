@@ -28,6 +28,25 @@ const (
 	copyFileEOFParam  CommandMessageParamType = "EOF"
 )
 
+
+
+func (node slaveApplicationNodeType) copyFileOpenFunc() commandProcessorFuncType {
+	return func(replySubject string, incomingMessage *CommandMessageType) error {
+		worker, err := newCopyFileWorker(
+			node.encodedConn,
+			replySubject, incomingMessage,
+			node.logger,
+		)
+		if err != nil {
+			panic(err.Error())
+		}
+		node.AppendWorker(worker)
+		return err
+	}
+}
+
+
+
 func newCopyFileWorker(
 	enc *nats.EncodedConn,
 	replySubject string,
@@ -59,6 +78,7 @@ func newCopyFileWorker(
 		logger.Error(err)
 		return
 	}
+
 	if func() (err error) {
 		err = enc.Flush()
 		if err != nil {
@@ -171,6 +191,8 @@ func (worker *copyFileWorker) closeFile() (err error) {
 	}
 	return
 }
+
+
 func (worker *copyFileWorker) removeFile() (err error) {
 	if len(worker.pathToFile) != 0 {
 		err = os.Remove(worker.pathToFile)

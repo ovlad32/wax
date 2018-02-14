@@ -19,7 +19,7 @@ type applicationNodeType struct {
 	//
 	//
 	logger                 *logrus.Logger
-	commandInterceptorsMap commandInterceptorsMapType
+	commandProcessorsMap commandProcessorsMapType
 }
 
 func (node *applicationNodeType) NodeId() NodeIdType {
@@ -58,7 +58,7 @@ func (node *applicationNodeType) connectToNATS() (err error) {
 func (node applicationNodeType) CallCommandByNodeId(
 	nodeId NodeIdType,
 	command CommandType,
-	entries ...CommandMessageParamEntryType,
+	entries ...*CommandMessageParamEntryType,
 ) (response *CommandMessageType, err error) {
 	return node.CallCommandBySubject(
 		node.commandSubject(nodeId),
@@ -70,7 +70,7 @@ func (node applicationNodeType) CallCommandByNodeId(
 func (node applicationNodeType) CallCommandBySubject(
 	subject SubjectType,
 	command CommandType,
-	entries ...CommandMessageParamEntryType,
+	entries ...*CommandMessageParamEntryType,
 ) (response *CommandMessageType, err error) {
 	outgoingMessage := &CommandMessageType{
 		Command: command,
@@ -105,7 +105,7 @@ func (node applicationNodeType) CallCommandBySubject(
 	}
 
 	if err = node.encodedConn.LastError(); err != nil {
-		err = errors.Wrapf(err, "error given via NATS while wiring command request %v ", command)
+		err = errors.Wrapf(err, "error given while wiring via NATS command request %v ", command)
 		node.logger.Error(err)
 		return
 	}
@@ -116,7 +116,8 @@ func (node applicationNodeType) CallCommandBySubject(
 func (node applicationNodeType) publishCommandResponse(
 	subject string,
 	command CommandType,
-	entries ...CommandMessageParamEntryType,) (err error) {
+	entries ...CommandMessageParamEntryType,
+) (err error) {
 
 	response := &CommandMessageType{
 		Command:command,
@@ -129,6 +130,41 @@ func (node applicationNodeType) publishCommandResponse(
 	err = node.encodedConn.Publish(subject, response)
 	if err != nil {
 		err = errors.Wrapf(err, "could not publish '%v' response ",command)
+		return
+	}
+	return
+}
+
+func (node applicationNodeType) publishCommand(
+	subject string,
+	command CommandType,
+	entries ...CommandMessageParamEntryType,
+) (err error) {
+
+	response := &CommandMessageType{
+		Command: command,
+	}
+	for _, e := range entries {
+		if !e.Name.IsEmpty() {
+			response.Params[e.Name] = e.Value
+		}
+	}
+	err = node.encodedConn.Publish(subject, response)
+	if err != nil {
+		err = errors.Wrapf(err, "could not publish '%v' response ", command)
+		return
+	}
+
+	err = node.encodedConn.Flush()
+	if err != nil {
+		err = errors.Wrapf(err, "could not flush published command  %v ", command)
+		node.logger.Error(err)
+		return
+	}
+
+	if err = node.encodedConn.LastError(); err != nil {
+		err = errors.Wrapf(err, "error given while wiring via NATS published command %v ", command)
+		node.logger.Error(err)
 		return
 	}
 	return

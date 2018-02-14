@@ -20,12 +20,21 @@ type slaveApplicationNodeType struct {
 
 func (node *slaveApplicationNodeType) startServices() (err error) {
 
-	err = node.initNatsService()
+	err = node.registerCommandProcessors()
+
+	if err != nil {
+		err = errors.Wrapf(err, "could register command processors")
+		return err
+	}
+
+	err = node.initNATSService()
+
 
 	if err != nil {
 		err = errors.Wrapf(err, "could not start NATS service")
 		return err
 	}
+
 
 	osSignal := make(chan os.Signal, 1)
 	signal.Notify(osSignal, os.Interrupt, os.Kill)
@@ -52,5 +61,13 @@ func (node *slaveApplicationNodeType) registerMaxPayloadSize(maxLoadedMsg *Comma
 	}
 	adjustment = node.encodedConn.Conn.MaxPayload() - int64(len(encoded))
 	node.payloadSizeAdjustments[maxLoadedMsg.Command] = adjustment
+	return
+}
+
+func (node *slaveApplicationNodeType) registerCommandProcessors() (err error){
+	node.commandProcessorsMap[parishClose] = node.parishCloseFunc()
+	node.commandProcessorsMap[copyFileOpen] = node.copyFileOpenFunc()
+	node.commandProcessorsMap[categorySplitOpen] = node.categorySplitOpenFunc()
+	node.commandProcessorsMap[categorySplitClose] = node.categorySplitCloseFunc()
 	return
 }

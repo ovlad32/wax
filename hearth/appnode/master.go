@@ -29,6 +29,15 @@ func (node *masterApplicationNodeType) startServices() (err error) {
 		return err
 	}
 
+
+	err = node.registerCommandProcessors()
+
+	if err != nil {
+		err = errors.Wrapf(err, "could register command processors")
+		return err
+	}
+
+
 	err = node.initNATSService()
 
 	if err != nil {
@@ -64,6 +73,12 @@ func (node *masterApplicationNodeType) startServices() (err error) {
 		node.logger.Warn("Master node shut down")
 		os.Exit(0)
 	}()
+	return
+}
+
+
+func (node *masterApplicationNodeType) registerCommandProcessors() (err error) {
+	node.commandProcessorsMap[parishOpen] = node.parishOpenFunc()
 	return
 }
 

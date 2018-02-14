@@ -27,10 +27,10 @@ type CommandMessageParamEntryType struct {
 }
 
 const (
-	parishOpen   CommandType = "PARISH.OPEN"
-	parishOpened CommandType = "PARISH.OPENED"
-	parishClose  CommandType = "PARISH.CLOSE"
-	parishClosed CommandType = "PARISH.CLOSED"
+	parishOpen   CommandType = "PARISH.OPEN.M"
+	parishOpened CommandType = "PARISH.OPENED.S"
+	parishClose  CommandType = "PARISH.CLOSE.M"
+	parishClosed CommandType = "PARISH.CLOSED.S"
 )
 
 
@@ -45,11 +45,11 @@ type ApplicationNodeConfigType struct {
 }
 
 
-type commandInterceptorFunc func(replySubject string,incomingMessage *CommandMessageType) error
+type commandProcessorFuncType func(replySubject string,incomingMessage *CommandMessageType) (err error)
 
 
 
-type commandInterceptorsMapType map[CommandType]commandInterceptorFunc
+type commandProcessorsMapType map[CommandType]commandProcessorFuncType
 
 
 /*
@@ -85,7 +85,7 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 
 	instance := &applicationNodeType{
 		config: *cfg,
-		commandInterceptorsMap:make(commandInterceptorsMapType),
+		commandProcessorsMap:make(commandProcessorsMapType),
 	}
 	instance.logger = logger
 

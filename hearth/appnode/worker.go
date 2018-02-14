@@ -3,10 +3,12 @@ package appnode
 import (
 	"github.com/nats-io/go-nats"
 	"github.com/pkg/errors"
+	"context"
 )
 
 const (
 	workerSubjectParam CommandMessageParamType = "workerSubject"
+
 )
 
 type WorkerInterface interface {
@@ -23,9 +25,10 @@ type WorkerHolderInterface interface {
 
 type basicWorker struct {
 	//NATS section
-	encodedConn   *nats.EncodedConn
+	node *slaveApplicationNodeType
 	subscription *nats.Subscription
 	subject           SubjectType
+	jobContext context.Context
 }
 
 func newWorkersMap() (map[SubjectType]WorkerInterface) {
@@ -42,6 +45,7 @@ func (worker basicWorker) Subject() SubjectType {
 }
 
 func (worker basicWorker) reportError(command CommandType, incoming error) (err error) {
+
 	errMsg := &CommandMessageType{
 		Command: command,
 		Err:     incoming,
@@ -49,6 +53,7 @@ func (worker basicWorker) reportError(command CommandType, incoming error) (err 
 	if !worker.subject.IsEmpty()  {
 		errMsg.Params = CommandMessageParamMap{
 			workerSubjectParam: worker.subscription,
+			slaveCommandSubjectParam:
 		}
 	}
 

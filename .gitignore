@@ -5,6 +5,8 @@ DBS/
 BINDATA/
 *.exe
 *.db
+*.rar
+*.zip
 *.lock
 .idea/
 *.iml

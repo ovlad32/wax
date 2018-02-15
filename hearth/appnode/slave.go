@@ -67,7 +67,10 @@ func (node *slaveApplicationNodeType) registerMaxPayloadSize(maxLoadedMsg *Comma
 func (node *slaveApplicationNodeType) registerCommandProcessors() (err error){
 	node.commandProcessorsMap[parishClose] = node.parishCloseFunc()
 	node.commandProcessorsMap[parishStopWorker] = node.parishStopWorkerFunc()
-	node.commandProcessorsMap[copyFileOpen] = node.copyFileOpenFunc()
+
+	node.commandProcessorsMap[fileStats] = node.fileStatsProcessorFunc()
+
+	node.commandProcessorsMap[copyFileDataSubscribe] = node.copyFileDataSubscriptionProcessorFunc()
 	node.commandProcessorsMap[categorySplitOpen] = node.categorySplitOpenFunc()
 	node.commandProcessorsMap[categorySplitClose] = node.categorySplitCloseFunc()
 	return

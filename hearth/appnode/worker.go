@@ -48,6 +48,7 @@ func (worker *basicWorkerType) UnsubscribeCommandSubject() (err error) {
 			}
 			return err
 		}
+		worker.subscription = nil
 	}
 	return
 }

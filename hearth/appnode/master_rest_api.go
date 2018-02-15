@@ -31,7 +31,7 @@ func (node *masterApplicationNodeType) CategorySplitHandlerFunc() func (http.Res
 
 
 
-func (node masterApplicationNodeType) copyfileHandlerFunc() func (http.ResponseWriter,*http.Request) {
+func (node masterApplicationNodeType) copyFileHandlerFunc() func (http.ResponseWriter,*http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		_ = vars
@@ -111,29 +111,37 @@ func (node masterApplicationNodeType) copyfile(
 
 	statsResp,err := node.CallCommandBySubject(
 		sourceNodeId.CommandSubject(),
-		copyFileStats,
+		fileStats,
 		&CommandMessageParamEntryType{
 			Key:filePathParam,
 			Value:srcFile,
 		},
 	)
 	if statsResp == nil {
-
+		err = errors.Errorf("response from source node is not initialized")
+		node.logger.Error(err)
 		return
 	}
-	if statsResp.Command != copyFileStats {
-
+	if statsResp.Command != fileStats {
+		err  = errors.Wrapf(err,"response from source node is not recognized: %v",statsResp.Command)
+		node.logger.Error(err)
 		return
 	}
 	if statsResp.Err != nil {
-
+		err  = errors.Errorf("response from source node with error: %v",statsResp.Err)
+		node.logger.Error(err)
+		return
 	}
-	fileExists := statsResp.ParamBool(fileExistsParam,false)
-	if !fileExists {
+	fileNotExists := statsResp.ParamBool(fileNotExistsParam,false)
+	if fileNotExists {
+		err  = errors.Errorf("source file does not exist: %v",srcFile)
+		node.logger.Error(err)
 		return
 	}
 	fileSize := statsResp.ParamInt64(fileSizeParam,0)
 	if fileSize == 0 {
+		err  = errors.Errorf("source file is empty: %v",srcFile)
+		node.logger.Error(err)
 		return
 	}
 
@@ -378,7 +386,7 @@ func (node *masterApplicationNodeType) initRestApiRouting() (srv *http.Server, e
 	r := mux.NewRouter()
 	r.HandleFunc("/table/index",node.BitsetBuildingHandlerFunc()).Methods("POST")
 	r.HandleFunc("/table/categorysplit",node.CategorySplitHandlerFunc()).Methods("POST")
-	r.HandleFunc("/util/copyfile",node.copyfileHandlerFunc()).Methods("POST")
+	r.HandleFunc("/util/copyfile",node.copyFileHandlerFunc()).Methods("POST")
 
 	//defer node.wg.Done()
 	address := fmt.Sprintf(":%d",node.config.MasterRestPort)

@@ -112,7 +112,7 @@ func (node applicationNodeType) CallCommandBySubject(
 	}
 
 	if err = node.encodedConn.LastError(); err != nil {
-		err = errors.Wrapf(err, "error given while wiring via NATS command request %v ", command)
+		err = errors.Wrapf(err, "error in NATS while wiring command request %v ", command)
 		node.logger.Error(err)
 		return
 	}
@@ -131,7 +131,11 @@ func (node applicationNodeType) PublishCommandResponse(
 	}
 	for _, e := range entries {
 		if !e.Key.IsEmpty() {
-			response.Params[e.Key] = e.Value
+			if e.Key == errorParam {
+				response.Err = e.Value.(error)
+			} else {
+				response.Params[e.Key] = e.Value
+			}
 		}
 	}
 	err = node.encodedConn.Publish(subject, response)
@@ -170,9 +174,42 @@ func (node applicationNodeType) PublishCommand(
 	}
 
 	if err = node.encodedConn.LastError(); err != nil {
-		err = errors.Wrapf(err, "error given while wiring via NATS published command %v ", command)
+		err = errors.Wrapf(err, "error in NATS while wiring published command %v ", command)
 		node.logger.Error(err)
 		return
 	}
+	return
+}
+
+
+
+func (node applicationNodeType) Subscribe(
+	subject SubjectType,
+	processor commandProcessorFuncType,
+) (result *nats.Subscription, err error) {
+
+	subscription, err := node.encodedConn.Subscribe(
+		subject.String(),
+		processor,
+	)
+
+	if err != nil {
+		err = errors.Wrapf(err,"could not create subscription for subject: %v ",subject)
+		node.logger.Error(err)
+		return
+	}
+	err = node.encodedConn.Flush()
+	if err != nil {
+		err = errors.Wrapf(err,"could not flush created subscription for subject: %v",subject)
+		node.logger.Error(err)
+		return
+	}
+
+	if err = node.encodedConn.LastError(); err != nil {
+		err = errors.Wrapf(err,"error in NATS while wiring flushed subscription: %v",subject)
+		node.logger.Error(err)
+		return
+	}
+	result = subscription
 	return
 }

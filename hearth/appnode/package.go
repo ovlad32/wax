@@ -25,6 +25,10 @@ type CommandMessageParamEntryType struct {
 	Key CommandMessageParamType
 	Value interface{}
 }
+type CommandMessageParamEntryArrayType []*CommandMessageParamEntryType
+
+
+
 
 const (
 	MasterNodeId NodeIdType = "MASTER"
@@ -196,3 +200,9 @@ func (s CommandMessageParamType) IsEmpty() bool {
 	return s == ""
 }
 
+func (c CommandMessageParamEntryArrayType) append(paramType CommandMessageParamType, value interface{}) {
+	c = append(c,&CommandMessageParamEntryType{
+		Key:paramType,
+		Value:value,
+	})
+}

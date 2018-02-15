@@ -5,34 +5,6 @@ import (
 	"os"
 )
 
-func (node slaveApplicationNodeType) parishCloseFunc() commandProcessorFuncType {
-	return func(reply string, msg *CommandMessageType) (err error) {
-		node.logger.Warnf("Signal of closing Slave '%v' command subscription has been received", node.NodeId())
-		if node.commandSubscription != nil {
-			err := node.commandSubscription.Unsubscribe()
-			if err != nil {
-				node.logger.Error(err)
-			}
-		}
-		node.encodedConn.Publish(
-			reply,
-			&CommandMessageType{
-				Command: parishClosed,
-			})
-		/*err := node.CloseRegularWorker(
-			reply,
-			msg,
-			parishClosed,
-		)
-		if err != nil {
-			panic(err.Error())
-		}*/
-		node.encodedConn.Close()
-		os.Exit(0)
-		return
-	}
-}
-
 
 func (node *slaveApplicationNodeType) makeCommandSubscription() (err error) {
 
@@ -113,5 +85,76 @@ func (node *slaveApplicationNodeType) commandSubscriptionFunc() func(string, str
 		}
 	}
 }
+
+func (node slaveApplicationNodeType) parishCloseFunc() commandProcessorFuncType {
+	return func(reply string, msg *CommandMessageType) (err error) {
+		node.logger.Warnf("Signal of closing Slave '%v' command subscription has been received", node.NodeId())
+		if node.commandSubscription != nil {
+			err := node.commandSubscription.Unsubscribe()
+			if err != nil {
+				node.logger.Error(err)
+			}
+		}
+		node.encodedConn.Publish(
+			reply,
+			&CommandMessageType{
+				Command: parishClosed,
+			})
+		/*err := node.CloseRegularWorker(
+			reply,
+			msg,
+			parishClosed,
+		)
+		if err != nil {
+			panic(err.Error())
+		}*/
+		node.encodedConn.Close()
+		os.Exit(0)
+		return
+	}
+}
+
+
+
+func (node slaveApplicationNodeType) parishStopWorkerFunc() commandProcessorFuncType {
+	return func(reply string, msg *CommandMessageType) (err error) {
+		//node.logger.Warnf("Signal Slave '%v' command subscription has been received", node.NodeId())
+
+		//of stopping worker on
+
+		subject := msg.ParamSubject(workerSubjectParam);
+		worker := node.FindWorkerBySubject(subject)
+		if worker == nil {
+
+		} else {
+			worker.CancelCurrentJob();
+		}
+
+		if node.commandSubscription != nil {
+			err := node.commandSubscription.Unsubscribe()
+			if err != nil {
+				node.logger.Error(err)
+			}
+		}
+		node.encodedConn.Publish(
+			reply,
+			&CommandMessageType{
+				Command: parishClosed,
+			})
+		/*err := node.CloseRegularWorker(
+			reply,
+			msg,
+			parishClosed,
+		)
+		if err != nil {
+			panic(err.Error())
+		}*/
+		node.encodedConn.Close()
+		os.Exit(0)
+		return
+	}
+}
+
+
 
 

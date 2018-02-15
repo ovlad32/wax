@@ -91,8 +91,100 @@ func (node masterApplicationNodeType) copyfileHandlerFunc() func (http.ResponseW
 		return
 	}
 }
-
 func (node masterApplicationNodeType) copyfile(
+	srcNodeId,
+	srcFile,
+	dstNodeId,
+	dstFile string,
+) (subject string,err error) {
+
+	sourceNodeId := NodeIdType(srcNodeId)
+	if sourceNodeId.IsEmpty() {
+		//TODO:
+	}
+
+	destinationNodeId := NodeIdType(dstNodeId)
+	if sourceNodeId.IsEmpty() {
+		//TODO:
+	}
+
+
+	statsResp,err := node.CallCommandBySubject(
+		sourceNodeId.CommandSubject(),
+		copyFileStats,
+		&CommandMessageParamEntryType{
+			Key:filePathParam,
+			Value:srcFile,
+		},
+	)
+	if statsResp == nil {
+
+		return
+	}
+	if statsResp.Command != copyFileStats {
+
+		return
+	}
+	if statsResp.Err != nil {
+
+	}
+	fileExists := statsResp.ParamBool(fileExistsParam,false)
+	if !fileExists {
+		return
+	}
+	fileSize := statsResp.ParamInt64(fileSizeParam,0)
+	if fileSize == 0 {
+		return
+	}
+
+	subsResp,err := node.CallCommandBySubject(
+		destinationNodeId.CommandSubject(),
+		copyFileDataSubscribe,
+		&CommandMessageParamEntryType{
+			Key:filePathParam,
+			Value:dstFile,
+		},
+		&CommandMessageParamEntryType{
+			Key:fileSizeParam,
+			Value:fileSize,
+		},
+		&CommandMessageParamEntryType{
+			Key:slaveCommandSubjectParam,
+			Value:sourceNodeId.CommandSubject(),
+		},
+	)
+
+	if subsResp == nil {
+
+		return
+	}
+	if subsResp.Command != copyFileDataSubscribe {
+
+		return
+	}
+
+	if subsResp.Err != nil{
+		return
+	}
+	dataSubject := subsResp.ParamSubject(workerSubjectParam)
+
+	err = node.PublishCommand(
+		sourceNodeId.CommandSubject(),
+		copyFileLaunch,
+		&CommandMessageParamEntryType{
+			Key:workerSubjectParam,
+			Value:dataSubject,
+		},
+		&CommandMessageParamEntryType{
+			Key:slaveCommandSubjectParam,
+			Value:destinationNodeId.CommandSubject(),
+		},
+	)
+
+	return dataSubject.String(),nil
+}
+
+func (node masterApplicationNodeType) copyfile1(
 	sourceNodeId,
 	sourceFile,
 	targetNode,

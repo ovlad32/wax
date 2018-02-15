@@ -36,7 +36,6 @@ func (node *masterApplicationNodeType) makeCommandSubscription() (err error) {
 	return
 }
 
-
 func (node *masterApplicationNodeType) commandSubscriptionFunc() func(string, string, *CommandMessageType) {
 	var err error
 	return func(subj, reply string, msg *CommandMessageType) {
@@ -83,8 +82,6 @@ func (node *masterApplicationNodeType) closeAllCommandSubscription() (err error)
 	}
 	return
 }
-
-
 
 func (node masterApplicationNodeType) parishOpenFunc() commandProcessorFuncType {
 	return func(reply string, msg *CommandMessageType) (err error) {

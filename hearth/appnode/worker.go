@@ -12,8 +12,9 @@ const (
 )
 
 type WorkerInterface interface {
-	Subject() SubjectType
-	Subscription() *nats.Subscription
+	CommandSubject() (subject SubjectType)
+	UnsubscribeCommandSubject() (err error)
+	CancelCurrentJob()
 }
 
 type WorkerHolderInterface interface {
@@ -23,12 +24,13 @@ type WorkerHolderInterface interface {
 	CloseRegularWorker(subject SubjectType)
 }
 
-type basicWorker struct {
+type basicWorkerType struct {
 	//NATS section
 	node *slaveApplicationNodeType
-	subscription *nats.Subscription
-	subject           SubjectType
+	subscription   *nats.Subscription
+	subject        SubjectType
 	jobContext context.Context
+	jobCancelFunc context.CancelFunc
 }
 
 func newWorkersMap() (map[SubjectType]WorkerInterface) {
@@ -36,14 +38,30 @@ func newWorkersMap() (map[SubjectType]WorkerInterface) {
 }
 
 
-func (worker basicWorker) Subscription() *nats.Subscription {
-	return worker.subscription
+func (worker *basicWorkerType) UnsubscribeCommandSubject() (err error) {
+	if worker.subscription != nil {
+		err = worker.subscription.Unsubscribe()
+		if err != nil {
+			err = errors.Wrapf(err, "could not unsubscribe worker command subject %v", worker.CommandSubject())
+			if worker.node!=nil && worker.node.logger != nil {
+				worker.node.logger.Error(err)
+			}
+			return err
+		}
+	}
+	return
 }
 
-func (worker basicWorker) Subject() SubjectType {
+func (worker *basicWorkerType) CommandSubject() (subject SubjectType) {
 	return worker.subject
 }
 
+func (worker *basicWorkerType) CancelCurrentJob() {
+	if worker.jobCancelFunc != nil {
+		worker.jobCancelFunc()
+	}
+}
+/*
 func (worker basicWorker) reportError(command CommandType, incoming error) (err error) {
 
 	errMsg := &CommandMessageType{
@@ -72,18 +90,18 @@ func (worker basicWorker) reportError(command CommandType, incoming error) (err 
 	}
 	return
 }
-
+*/
 func (node *slaveApplicationNodeType) AppendWorker(a WorkerInterface) {
 	if node.workers == nil {
 		node.workerMux.Lock()
 		if node.workers == nil {
 			node.workers = newWorkersMap()
 		}
-		node.workers[a.Subject()] = a
+		node.workers[a.CommandSubject()] = a
 		node.workerMux.Unlock()
 	} else {
 		node.workerMux.Lock()
-		node.workers[a.Subject()] = a
+		node.workers[a.CommandSubject()] = a
 		node.workerMux.Unlock()
 	}
 }
@@ -138,14 +156,11 @@ func (node *slaveApplicationNodeType) CloseRegularWorker(
 		return err
 	}
 
-	 if worker.Subscription() != nil {
-		err = worker.Subscription().Unsubscribe()
-		if err != nil {
-			err = errors.Wrapf(err, "could not close %v worker ", worker.Subject())
-			node.logger.Error(err)
-			return err
-		}
+	err = worker.UnsubscribeCommandSubject()
+	if err != nil {
+		return err
 	}
+
 	err = node.encodedConn.Publish(
 		replySubject,
 		&CommandMessageType{
@@ -153,10 +168,10 @@ func (node *slaveApplicationNodeType) CloseRegularWorker(
 		},
 	)
 	if err != nil {
-		err = errors.Wrapf(err, "could not publish reply of closing %v worker id",  worker.Subject())
+		err = errors.Wrapf(err, "could not publish reply of closing %v worker id",  worker.CommandSubject())
 		node.logger.Error(err)
 		return err
 	}
-	node.RemoveWorkerBySubject( worker.Subject())
+	node.RemoveWorkerBySubject(worker.CommandSubject())
 	return
 }

@@ -66,8 +66,45 @@ func (node *slaveApplicationNodeType) registerMaxPayloadSize(maxLoadedMsg *Comma
 
 func (node *slaveApplicationNodeType) registerCommandProcessors() (err error){
 	node.commandProcessorsMap[parishClose] = node.parishCloseFunc()
+	node.commandProcessorsMap[parishStopWorker] = node.parishStopWorkerFunc()
 	node.commandProcessorsMap[copyFileOpen] = node.copyFileOpenFunc()
 	node.commandProcessorsMap[categorySplitOpen] = node.categorySplitOpenFunc()
 	node.commandProcessorsMap[categorySplitClose] = node.categorySplitCloseFunc()
 	return
 }
+
+func (node slaveApplicationNodeType) reportError(
+		command CommandType,
+		incomingErr error,
+		entries... *CommandMessageParamEntryType,
+) (err error) {
+
+	errMsg := &CommandMessageType{
+		Command: command,
+		Err:     incomingErr,
+	}
+
+	errMsg.Params = CommandMessageParamMap{
+		slaveCommandSubjectParam:SubjectType(node.commandSubscription.Subject),
+	}
+
+	for _,e := range entries {
+		errMsg.Params[e.Name] = e.Value
+	}
+
+	err = node.encodedConn.Publish(masterCommandSubject, errMsg)
+	if err != nil {
+		err = errors.Wrapf(err, "could not publish error message")
+		return
+	}
+	if err = node.encodedConn.Flush(); err != nil {
+		err = errors.Wrapf(err, "could not flush published error message")
+		return
+	}
+	if err = node.encodedConn.LastError(); err != nil {
+		err = errors.Wrapf(err, "could not wire published error message")
+		return
+	}
+	return
+}
+

@@ -22,15 +22,17 @@ type SubjectType string
 type CommandMessageParamType string
 
 type CommandMessageParamEntryType struct {
-	Name CommandMessageParamType
+	Key CommandMessageParamType
 	Value interface{}
 }
 
 const (
+	MasterNodeId NodeIdType = "MASTER"
 	parishOpen   CommandType = "PARISH.OPEN.M"
 	parishOpened CommandType = "PARISH.OPENED.S"
 	parishClose  CommandType = "PARISH.CLOSE.M"
 	parishClosed CommandType = "PARISH.CLOSED.S"
+	parishStopWorker CommandType = "PARISH.CANCEL.JOB"
 )
 
 
@@ -103,7 +105,7 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 		master = &masterApplicationNodeType{
 			applicationNodeType: instance,
 		}
-		master.config.NodeId = "MASTER"
+		master.config.NodeId = MasterNodeId
 	} else {
 		if cfg.NodeId == "" {
 			logger.Fatal("Provide node id!")
@@ -156,6 +158,17 @@ func (s NodeIdType) String() string {
 }
 func (s NodeIdType) IsEmpty() bool {
 	return s == ""
+}
+
+func (s NodeIdType) CommandSubject() SubjectType {
+	if s.IsEmpty() {
+		panic("NodeId is empty!")
+	}
+	if s == MasterNodeId {
+		return MasterCommandSubject()
+	} else {
+		return SlaveCommandSubject(s)
+	}
 }
 
 

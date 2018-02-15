@@ -8,20 +8,33 @@ import (
 	"github.com/sirupsen/logrus"
 	"io"
 	"os"
+	"golang.org/x/text/message"
+	"github.com/nats-io/gnatsd/logger"
 )
 
-type copyFileWorker struct {
-	basicWorker
-	file       io.WriteCloser
+type copyFileWorkerType struct {
+	basicWorkerType
+	file       io.ReadWriteCloser
 	pathToFile string
-	logger     *logrus.Logger
+	counterPartCommandSubject SubjectType
+}
+type copyFileReader struct {
+	copyFileWorkerType
+}
+type copyFileWriter struct {
+	copyFileWorkerType
 }
 
-const outputFilePathParm CommandMessageParamType = "outputFilePath"
-const copyFileOpen CommandType = "COPYFILE.OPEN"
-const copyFileOpened CommandType = "COPYFILE.OPENED"
+
+const filePathParam CommandMessageParamType = "filePathParam"
+const fileSizeParam CommandMessageParamType = "fileSizeParam"
+const fileExistsParam CommandMessageParamType = "fileExistsParam"
+
+const copyFileDataSubscribe CommandType = "COPYFILE.SUBS"
 const copyFileData CommandType = "COPYFILE.DATA"
 const copyFileError CommandType = "COPYFILE.ERROR"
+const copyFileStats CommandType = "COPYFILE.STATS"
+const copyFileLaunch CommandType = "COPYFILE.LAUNCH"
 
 const (
 	copyFileDataParam CommandMessageParamType = "data"
@@ -29,10 +42,12 @@ const (
 )
 
 
-
 func (node slaveApplicationNodeType) copyFileOpenFunc() commandProcessorFuncType {
 	return func(replySubject string, incomingMessage *CommandMessageType) error {
-		worker, err := newCopyFileWorker(
+
+
+
+	worker, err := newCopyFileWorker(
 			node.encodedConn,
 			replySubject, incomingMessage,
 			node.logger,
@@ -45,9 +60,84 @@ func (node slaveApplicationNodeType) copyFileOpenFunc() commandProcessorFuncType
 	}
 }
 
+func (worker *copyFileWorkerType) enc() *nats.EncodedConn {
+	return worker.node.encodedConn
+}
+func (worker *copyFileWorkerType) logger() *logrus.Logger {
+	return worker.node.logger
+}
+
+func (worker *copyFileWorkerType) readMessageParameters(message *CommandMessageType) (err error){
+	logger := worker.logger();
+	worker.pathToFile = message.ParamString(filePathParam, "")
+
+	if worker.pathToFile == "" {
+		err = errors.New("path to file is empty")
+		logger.Error(err)
+		return
+	}
+	worker.counterPartCommandSubject = message.ParamSubject(slaveCommandSubjectParam)
+	if worker.counterPartCommandSubject.IsEmpty() {
+		err = errors.New("counterpart command subject is empty")
+		logger.Error(err)
+		return
+	}
+	return
+}
 
 
-func newCopyFileWorker(
+func (worker *copyFileWriter) createDataSubscription(message *CommandMessageType) (err error){
+	enc := worker.enc()
+	logger := worker.logger()
+
+	subjectName := fmt.Sprintf("COPYFILE/%v", nuid.Next())
+
+	worker.subscription, err = worker.node.encodedConn.Subscribe(
+		subjectName,
+		worker.subscriptionFunc(),
+	)
+
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+
+	if func() (err error) {
+		err = worker.node.encodedConn.Flush()
+		if err != nil {
+			logger.Error(err)
+			return
+		}
+
+		if err = enc.LastError(); err != nil {
+			logger.Error(err)
+			return
+		}
+
+		err = enc.Publish(
+			replySubject,
+			&CommandMessageType{
+				Command: copyFileOpened,
+				Params: CommandMessageParamMap{
+					workerSubjectParam: subjectName,
+				},
+			})
+		if err != nil {
+			err = errors.Errorf("could not reply %v: %v ", message.Command, err)
+			logger.Error(err)
+			return
+		}
+		return
+	}() != nil {
+		worker.subscription.Unsubscribe()
+		worker.subscription = nil
+	}
+	worker.subject = SubjectType(subjectName)
+}
+
+
+func newCopyFileReader(
+	node *slaveApplicationNodeType,
 	enc *nats.EncodedConn,
 	replySubject string,
 	message *CommandMessageType,
@@ -56,17 +146,11 @@ func newCopyFileWorker(
 
 	worker := &copyFileWorker{
 		basicWorker: basicWorker{
-			encodedConn: enc,
+			node: node,
 		},
 		logger: logger,
 	}
 
-	worker.pathToFile = message.ParamString(outputFilePathParm, "")
-
-	if worker.pathToFile == "" {
-		err = errors.Errorf("output path is empty")
-		return
-	}
 
 	subjectName := fmt.Sprintf("COPYFILE/%v", nuid.Next())
 
@@ -94,7 +178,7 @@ func newCopyFileWorker(
 		err = enc.Publish(replySubject,
 			&CommandMessageType{
 				Command: copyFileOpened,
-				Params: map[CommandMessageParamType]interface{}{
+				Params: CommandMessageParamMap{
 					workerSubjectParam: subjectName,
 				},
 			})
@@ -124,7 +208,14 @@ func (worker *copyFileWorker) subscriptionFunc() func(msg *CommandMessageType) {
 				if err != nil {
 					err = errors.Wrapf(err, "could not open file %v", worker.pathToFile)
 					worker.logger.Error(err)
-					worker.reportError(copyFileError, err)
+					worker.node.reportError(
+						copyFileError,
+						err,
+						&CommandMessageParamEntryType{
+							Name:workerSubjectParam,
+							Value:worker.subject,
+						},
+						)
 					worker.unsubscribe()
 					return
 				}

@@ -22,13 +22,20 @@ type applicationNodeType struct {
 	commandProcessorsMap commandProcessorsMapType
 }
 
+func MasterCommandSubject() SubjectType{
+	return masterCommandSubject
+}
+
+
+func SlaveCommandSubject(id NodeIdType) SubjectType{
+	return SubjectType(fmt.Sprintf("COMMAND/%v", id))
+}
+
+
 func (node *applicationNodeType) NodeId() NodeIdType {
 	return node.config.NodeId
 }
 
-func (node applicationNodeType) commandSubject(id NodeIdType) SubjectType {
-	return SubjectType(fmt.Sprintf("COMMAND/%v", id))
-}
 
 func (node *applicationNodeType) connectToNATS() (err error) {
 	conn, err := nats.Connect(
@@ -61,7 +68,7 @@ func (node applicationNodeType) CallCommandByNodeId(
 	entries ...*CommandMessageParamEntryType,
 ) (response *CommandMessageType, err error) {
 	return node.CallCommandBySubject(
-		node.commandSubject(nodeId),
+		SlaveCommandSubject(nodeId),
 		command,
 		entries...
 	)
@@ -79,8 +86,8 @@ func (node applicationNodeType) CallCommandBySubject(
 	incomingMessage := new(CommandMessageType)
 
 	for _, e := range entries {
-		if !e.Name.IsEmpty() {
-			outgoingMessage.Params[e.Name] = e.Value
+		if !e.Key.IsEmpty() {
+			outgoingMessage.Params[e.Key] = e.Value
 		}
 	}
 
@@ -113,18 +120,18 @@ func (node applicationNodeType) CallCommandBySubject(
 	return
 }
 
-func (node applicationNodeType) publishCommandResponse(
+func (node applicationNodeType) PublishCommandResponse(
 	subject string,
 	command CommandType,
-	entries ...CommandMessageParamEntryType,
+	entries ...*CommandMessageParamEntryType,
 ) (err error) {
 
 	response := &CommandMessageType{
 		Command:command,
 	}
 	for _, e := range entries {
-		if !e.Name.IsEmpty() {
-			response.Params[e.Name] = e.Value
+		if !e.Key.IsEmpty() {
+			response.Params[e.Key] = e.Value
 		}
 	}
 	err = node.encodedConn.Publish(subject, response)
@@ -135,21 +142,21 @@ func (node applicationNodeType) publishCommandResponse(
 	return
 }
 
-func (node applicationNodeType) publishCommand(
-	subject string,
+func (node applicationNodeType) PublishCommand(
+	subject SubjectType,
 	command CommandType,
-	entries ...CommandMessageParamEntryType,
+	entries ...*CommandMessageParamEntryType,
 ) (err error) {
 
 	response := &CommandMessageType{
 		Command: command,
 	}
 	for _, e := range entries {
-		if !e.Name.IsEmpty() {
-			response.Params[e.Name] = e.Value
+		if !e.Key.IsEmpty() {
+			response.Params[e.Key] = e.Value
 		}
 	}
-	err = node.encodedConn.Publish(subject, response)
+	err = node.encodedConn.Publish(subject.String(), response)
 	if err != nil {
 		err = errors.Wrapf(err, "could not publish '%v' response ", command)
 		return

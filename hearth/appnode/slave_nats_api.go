@@ -1,10 +1,6 @@
 package appnode
 
-const (
-	slaveCommandSubjectParam CommandMessageParamType = "slaveCommandSubject"
-	slaveIdParam             CommandMessageParamType = "slaveId"
-	ResubscribedParam        CommandMessageParamType = "resubscribed"
-)
+
 
 func (node *slaveApplicationNodeType) initNATSService() (err error) {
 

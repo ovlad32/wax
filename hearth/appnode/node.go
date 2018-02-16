@@ -9,6 +9,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type NodeIdType string
+
 type applicationNodeType struct {
 	config        ApplicationNodeConfigType
 	ctx           context.Context
@@ -21,6 +23,9 @@ type applicationNodeType struct {
 	logger                 *logrus.Logger
 	commandProcessorsMap commandProcessorsMapType
 }
+const (
+	MasterNodeId NodeIdType = "MASTER"
+)
 
 func MasterCommandSubject() SubjectType{
 	return masterCommandSubject
@@ -37,6 +42,24 @@ func (node *applicationNodeType) NodeId() NodeIdType {
 }
 
 
+func (s NodeIdType) String() string {
+	return string(s)
+}
+func (s NodeIdType) IsEmpty() bool {
+	return s == ""
+}
+
+func (s NodeIdType) CommandSubject() SubjectType {
+	if s.IsEmpty() {
+		panic("NodeId is empty!")
+	}
+	if s == MasterNodeId {
+		return MasterCommandSubject()
+	} else {
+		return SlaveCommandSubject(s)
+	}
+}
+
 func (node *applicationNodeType) connectToNATS() (err error) {
 	conn, err := nats.Connect(
 		node.config.NATSEndpoint,
@@ -50,6 +73,7 @@ func (node *applicationNodeType) connectToNATS() (err error) {
 
 	gob.Register(SubjectType(""))
 	gob.Register(NodeIdType(""))
+	gob.Register(WorkerIdType(""))
 
 	node.encodedConn, err = nats.NewEncodedConn(conn, nats.GOB_ENCODER)
 
@@ -67,14 +91,14 @@ func (node applicationNodeType) CallCommandByNodeId(
 	command CommandType,
 	entries ...*CommandMessageParamEntryType,
 ) (response *CommandMessageType, err error) {
-	return node.CallCommandBySubject(
+	return node.RequestCommandBySubject(
 		SlaveCommandSubject(nodeId),
 		command,
 		entries...
 	)
 }
 
-func (node applicationNodeType) CallCommandBySubject(
+func (node applicationNodeType) RequestCommandBySubject(
 	subject SubjectType,
 	command CommandType,
 	entries ...*CommandMessageParamEntryType,

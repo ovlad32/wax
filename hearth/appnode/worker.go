@@ -4,28 +4,45 @@ import (
 	"github.com/nats-io/go-nats"
 	"github.com/pkg/errors"
 	"context"
+	"fmt"
+	"github.com/nats-io/nuid"
 )
 
 const (
 	workerSubjectParam CommandMessageParamType = "workerSubject"
-
+	workerIdParam CommandMessageParamType = "workerId"
 )
 
+type WorkerIdType string
+
+func newWorkerId() WorkerIdType {
+	return WorkerIdType(fmt.Sprintf("worker/%v",nuid.Next()))
+}
+func (c WorkerIdType) String() string {
+	return string(c)
+}
+func (c WorkerIdType) IsEmpty() bool {
+	return c == ""
+}
+
+
 type WorkerInterface interface {
-	CommandSubject() (subject SubjectType)
-	UnsubscribeCommandSubject() (err error)
+	Id() WorkerIdType
+	Subject() (subject SubjectType)
+	Unsubscribe() (err error)
 	CancelCurrentJob()
 }
 
 type WorkerHolderInterface interface {
-	Append(a WorkerInterface)
-	FindBy(subject SubjectType) WorkerInterface
-	RemoveBy(subject SubjectType)
-	CloseRegularWorker(subject SubjectType)
+	AppendWorker(a WorkerInterface)
+	FindWorker(id WorkerIdType) WorkerInterface
+	RemoveWorker(id WorkerIdType)
+	CloseRegularWorker(id WorkerIdType)
 }
 
 type basicWorkerType struct {
 	//NATS section
+	id WorkerIdType
 	node *slaveApplicationNodeType
 	subscription   *nats.Subscription
 	subject        SubjectType
@@ -33,16 +50,17 @@ type basicWorkerType struct {
 	jobCancelFunc context.CancelFunc
 }
 
-func newWorkersMap() (map[SubjectType]WorkerInterface) {
-	return make(map[SubjectType]WorkerInterface)
+func newWorkersMap() (map[WorkerIdType]WorkerInterface) {
+	return make(map[WorkerIdType]WorkerInterface)
 }
 
 
-func (worker *basicWorkerType) UnsubscribeCommandSubject() (err error) {
+func (worker *basicWorkerType) Unsubscribe() (err error) {
 	if worker.subscription != nil {
+		name := worker.subscription.Subject
 		err = worker.subscription.Unsubscribe()
 		if err != nil {
-			err = errors.Wrapf(err, "could not unsubscribe worker command subject %v", worker.CommandSubject())
+			err = errors.Wrapf(err, "could not unsubscribe worker subject %v", name )
 			if worker.node!=nil && worker.node.logger != nil {
 				worker.node.logger.Error(err)
 			}
@@ -53,8 +71,13 @@ func (worker *basicWorkerType) UnsubscribeCommandSubject() (err error) {
 	return
 }
 
-func (worker *basicWorkerType) CommandSubject() (subject SubjectType) {
+
+func (worker *basicWorkerType) Subject() (subject SubjectType) {
 	return worker.subject
+}
+
+func (worker *basicWorkerType) Id() (WorkerIdType) {
+	return worker.id
 }
 
 func (worker *basicWorkerType) CancelCurrentJob() {
@@ -98,18 +121,18 @@ func (node *slaveApplicationNodeType) AppendWorker(a WorkerInterface) {
 		if node.workers == nil {
 			node.workers = newWorkersMap()
 		}
-		node.workers[a.CommandSubject()] = a
+		node.workers[a.Id()] = a
 		node.workerMux.Unlock()
 	} else {
 		node.workerMux.Lock()
-		node.workers[a.CommandSubject()] = a
+		node.workers[a.Id()] = a
 		node.workerMux.Unlock()
 	}
 }
 
 
 
-func (node *slaveApplicationNodeType) FindWorkerBySubject(subject SubjectType) WorkerInterface {
+func (node *slaveApplicationNodeType) FindWorker(id WorkerIdType) WorkerInterface {
 	if node.workers == nil {
 		return nil
 	}
@@ -124,7 +147,7 @@ func (node *slaveApplicationNodeType) FindWorkerBySubject(subject SubjectType) W
 		}
 	}*/
 
-	worker, found := node.workers[subject]
+	worker, found := node.workers[id]
 	node.workerMux.RUnlock()
 	if found {
 		return worker
@@ -132,9 +155,9 @@ func (node *slaveApplicationNodeType) FindWorkerBySubject(subject SubjectType) W
 	return nil
 }
 
-func (node *slaveApplicationNodeType) RemoveWorkerBySubject(subject SubjectType) {
+func (node *slaveApplicationNodeType) RemoveWorker(id WorkerIdType) {
 	node.workerMux.Lock()
-	delete(node.workers, subject)
+	delete(node.workers, id)
 	node.workerMux.Unlock()
 }
 
@@ -143,21 +166,21 @@ func (node *slaveApplicationNodeType) CloseRegularWorker(
 	message *CommandMessageType,
 	replyCommand CommandType) (err error) {
 
-	subject := message.ParamSubject(workerSubjectParam)
-	if subject.IsEmpty() {
-		err = errors.Errorf("Parameter %v is empty", workerSubjectParam)
+	id := message.ParamWorkerId(workerIdParam)
+	if id.IsEmpty() {
+		err = errors.Errorf("Parameter %v is empty", workerIdParam)
 		node.logger.Error(err)
 		return err
 	}
 
-	worker := node.FindWorkerBySubject(subject)
+	worker := node.FindWorker(id)
 	if worker == nil {
-		err = errors.Errorf("could not find %v worker", subject)
+		err = errors.Errorf("could not find %v worker", id)
 		node.logger.Error(err)
 		return err
 	}
 
-	err = worker.UnsubscribeCommandSubject()
+	err = worker.Unsubscribe()
 	if err != nil {
 		return err
 	}
@@ -169,10 +192,10 @@ func (node *slaveApplicationNodeType) CloseRegularWorker(
 		},
 	)
 	if err != nil {
-		err = errors.Wrapf(err, "could not publish reply of closing %v worker id",  worker.CommandSubject())
+		err = errors.Wrapf(err, "could not publish reply of closing %v worker id",  worker.Subject())
 		node.logger.Error(err)
 		return err
 	}
-	node.RemoveWorkerBySubject(worker.CommandSubject())
+	node.RemoveWorker(worker.Id())
 	return
 }

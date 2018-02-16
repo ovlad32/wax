@@ -2,52 +2,41 @@ package appnode
 
 import (
 	"fmt"
-	"github.com/nats-io/go-nats"
 	"github.com/pkg/errors"
-	"github.com/nats-io/gnatsd/logger"
 )
 
 
 func (node *masterApplicationNodeType) makeCommandSubscription() (err error) {
+	masterSubject := MasterCommandSubject()
+	node.logger.Infof("Create MASTER command subscription '%v'", masterSubject )
 
-	node.logger.Infof("Create MASTER command subscription '%v'", masterCommandSubject)
-
-
-	node.commandSubscription, err = node.encodedConn.Subscribe(
-		masterCommandSubject,
+	node.commandSubscription, err = node.Subscribe(
+		masterSubject,
 		node.commandSubscriptionFunc(),
-	)
-
-	err = node.encodedConn.Flush()
+		)
 	if err != nil {
-		err = errors.Wrapf(err, "Error while subscription being flushed")
+		err = errors.Wrapf(err, "could not create Master subscription")
 		node.logger.Error(err)
+	} else {
+		node.logger.Info(
+			"Master command subscription has been created",
+		)
 	}
-
-	if err = node.encodedConn.LastError(); err != nil {
-		err = errors.Wrap(err, "error given via NATS while making Master command subscription")
-		node.logger.Error(err)
-	}
-
-
-	node.logger.Info(
-		"Master command subscription has been created",
-	)
 	return
 }
 
-func (node *masterApplicationNodeType) commandSubscriptionFunc() func(string, string, *CommandMessageType) {
-	var err error
-	return func(subj, reply string, msg *CommandMessageType) {
-		node.logger.Infof("Master node command message: %v", msg.Command)
-		if processor, found := node.commandProcessorsMap[msg.Command];found {
-			err = processor(reply,msg)
+func (node *masterApplicationNodeType) commandSubscriptionFunc() commandProcessorFuncType {
+	return func(replySubject string, incomingMessage *CommandMessageType) (err error) {
+		node.logger.Infof("Master node command message: %v", incomingMessage.Command)
+		if processor, found := node.commandProcessorsMap[incomingMessage.Command];found {
+			err = processor(replySubject,incomingMessage)
 			if err != nil {
 				//TODO:
 			}
 		} else {
-			panic(fmt.Sprintf("%v: cannot recognize incoming message command '%v' ", masterCommandSubject, msg.Command))
+			panic(fmt.Sprintf("%v: cannot recognize incoming message command '%v' ",incomingMessage.Command))
 		}
+		return
 	}
 }
 
@@ -81,51 +70,4 @@ func (node *masterApplicationNodeType) closeAllCommandSubscription() (err error)
 		node.logger.Warnf("MASTER command subscription has been closed")
 	}
 	return
-}
-
-func (node masterApplicationNodeType) parishOpenFunc() commandProcessorFuncType {
-	return func(reply string, msg *CommandMessageType) (err error) {
-		slaveCommandSubject := msg.ParamSubject(slaveCommandSubjectParam)
-		if slaveCommandSubject.IsEmpty() {
-			node.logger.Warn("gotten slave command subject is empty!")
-			return
-		}
-		slaveId := msg.ParamNodeId(slaveIdParam)
-		if slaveId.IsEmpty() {
-			node.logger.Warn("gotten slaveId is empty!")
-			return
-		}
-
-		node.logger.Infof("Start registering new Slave '%v' with command subject '%v'", slaveId, slaveCommandSubject)
-
-
-		params := make([]CommandMessageParamEntryType,0)
-		node.slaveCommandMux.RLock()
-		if prev, found := node.slaveCommandSubjects[slaveId]; found {
-			node.slaveCommandMux.RUnlock()
-			params = append(params, CommandMessageParamEntryType{
-				Name:ResubscribedParam,
-				Value:true,
-			});
-			node.logger.Infof(
-				"New Slave '%v' with command subject '%v' had been registered previously with '%v'",
-				slaveId,
-				slaveCommandSubject,
-				prev,
-			)
-		} else {
-			node.slaveCommandMux.RUnlock()
-		}
-		err = node.applicationNodeType.publishCommandResponse(reply, parishOpened, params...)
-		if err != nil {
-			err = errors.Wrapf(err, "could not reply of opening a new slave")
-			return
-		}
-		node.slaveCommandMux.Lock()
-		node.slaveCommandSubjects[slaveId] = slaveCommandSubject
-		node.slaveCommandMux.Unlock()
-		node.logger.Infof("A new node with command subject '%v' has been successfully registered", slaveCommandSubject)
-		return
-	}
-
 }

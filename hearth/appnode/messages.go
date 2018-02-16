@@ -92,3 +92,16 @@ func (m CommandMessageType) ParamNodeId(name CommandMessageParamType) (result No
 	}
 	return result
 }
+
+func (m CommandMessageType) ParamWorkerId(name CommandMessageParamType) (result WorkerIdType) {
+	val, found := m.Params[name]
+	if !found {
+		return WorkerIdType("")
+	}
+
+	result, ok := val.(WorkerIdType)
+	if !ok {
+		panic(fmt.Sprintf("could not get WorkerIdType value from parameter named %v at command %v", name, m.Command))
+	}
+	return result
+}

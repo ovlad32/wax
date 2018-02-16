@@ -7,6 +7,8 @@ import (
 	"github.com/pkg/errors"
 	"runtime"
 	"sync"
+	"strings"
+	"github.com/nats-io/nuid"
 )
 
 var currentInstance *applicationNodeType
@@ -15,10 +17,8 @@ var currentSlave *slaveApplicationNodeType
 
 var ciMux sync.Mutex
 
-type NodeIdType string
-type CommandType string
 type SubjectType string
-
+type CommandType string
 type CommandMessageParamType string
 
 type CommandMessageParamEntryType struct {
@@ -27,17 +27,7 @@ type CommandMessageParamEntryType struct {
 }
 type CommandMessageParamEntryArrayType []*CommandMessageParamEntryType
 
-
-
-
-const (
-	MasterNodeId NodeIdType = "MASTER"
-	parishOpen   CommandType = "PARISH.OPEN.M"
-	parishOpened CommandType = "PARISH.OPENED.S"
-	parishClose  CommandType = "PARISH.CLOSE.M"
-	parishClosed CommandType = "PARISH.CLOSED.S"
-	parishStopWorker CommandType = "PARISH.CANCEL.JOB"
-)
+const errorParam CommandMessageParamType = "error"
 
 
 
@@ -118,7 +108,7 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 			applicationNodeType: instance,
 		}
 		slave.payloadSizeAdjustments = make(map[CommandType]int64)
-		slave.workers = make(map[SubjectType]WorkerInterface)
+		slave.workers = newWorkersMap()
 	}
 
 	ciMux.Lock()
@@ -157,23 +147,6 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 
 
 
-func (s NodeIdType) String() string {
-	return string(s)
-}
-func (s NodeIdType) IsEmpty() bool {
-	return s == ""
-}
-
-func (s NodeIdType) CommandSubject() SubjectType {
-	if s.IsEmpty() {
-		panic("NodeId is empty!")
-	}
-	if s == MasterNodeId {
-		return MasterCommandSubject()
-	} else {
-		return SlaveCommandSubject(s)
-	}
-}
 
 
 func (c CommandType) String() string {
@@ -190,6 +163,13 @@ func (s SubjectType) String() string {
 func (s SubjectType) IsEmpty() bool {
 	return s == ""
 }
+func newPrefixSubject(prefix string) SubjectType {
+	prefix = strings.TrimSpace(prefix)
+	if prefix != "" {
+		prefix = prefix+"/"
+	}
+	return SubjectType(fmt.Sprintf("%v%v",prefix,nuid.Next()))
+}
 
 
 
@@ -200,9 +180,14 @@ func (s CommandMessageParamType) IsEmpty() bool {
 	return s == ""
 }
 
-func (c CommandMessageParamEntryArrayType) append(paramType CommandMessageParamType, value interface{}) {
+func (c CommandMessageParamEntryArrayType) Append(paramType CommandMessageParamType, value interface{}) CommandMessageParamEntryArrayType{
 	c = append(c,&CommandMessageParamEntryType{
 		Key:paramType,
 		Value:value,
 	})
+	return c
+}
+
+func NewCommandMessageParams(n int) CommandMessageParamEntryArrayType{
+	return make(CommandMessageParamEntryArrayType,0,n)
 }

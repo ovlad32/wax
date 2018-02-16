@@ -109,13 +109,11 @@ func (node masterApplicationNodeType) copyfile(
 	}
 
 
-	statsResp,err := node.CallCommandBySubject(
+	statsResp,err := node.RequestCommandBySubject(
 		sourceNodeId.CommandSubject(),
 		fileStats,
-		&CommandMessageParamEntryType{
-			Key:filePathParam,
-			Value:srcFile,
-		},
+		NewCommandMessageParams(1).
+			Append(filePathParam,srcFile)...
 	)
 	if statsResp == nil {
 		err = errors.Errorf("response from source node is not initialized")
@@ -145,10 +143,16 @@ func (node masterApplicationNodeType) copyfile(
 		return
 	}
 
-	subsResp,err := node.CallCommandBySubject(
+
+
+	subsResp,err := node.RequestCommandBySubject(
 		destinationNodeId.CommandSubject(),
 		copyFileDataSubscribe,
-		&CommandMessageParamEntryType{
+		NewCommandMessageParams(3).
+			Append(filePathParam,dstFile).
+			Append(fileSizeParam,fileSize)...
+	)
+/*&CommandMessageParamEntryType{
 			Key:filePathParam,
 			Value:dstFile,
 		},
@@ -159,9 +163,7 @@ func (node masterApplicationNodeType) copyfile(
 		&CommandMessageParamEntryType{
 			Key:slaveCommandSubjectParam,
 			Value:sourceNodeId.CommandSubject(),
-		},
-	)
-
+		},*/
 	if subsResp == nil {
 
 		return
@@ -179,14 +181,9 @@ func (node masterApplicationNodeType) copyfile(
 	err = node.PublishCommand(
 		sourceNodeId.CommandSubject(),
 		copyFileLaunch,
-		&CommandMessageParamEntryType{
-			Key:workerSubjectParam,
-			Value:dataSubject,
-		},
-		&CommandMessageParamEntryType{
-			Key:slaveCommandSubjectParam,
-			Value:destinationNodeId.CommandSubject(),
-		},
+		NewCommandMessageParams(1).
+			Append(filePathParam,srcFile).
+			Append(workerSubjectParam,dataSubject)...
 	)
 
 	return dataSubject.String(),nil

@@ -14,7 +14,7 @@ type slaveApplicationNodeType struct {
 	//
 	payloadSizeAdjustments map[CommandType]int64
 	workerMux              sync.RWMutex
-	workers                map[SubjectType]WorkerInterface
+	workers                map[WorkerIdType]WorkerInterface
 }
 
 
@@ -71,11 +71,13 @@ func (node *slaveApplicationNodeType) registerCommandProcessors() (err error){
 	node.commandProcessorsMap[fileStats] = node.fileStatsProcessorFunc()
 
 	node.commandProcessorsMap[copyFileDataSubscribe] = node.copyFileDataSubscriptionProcessorFunc()
+	node.commandProcessorsMap[copyFileLaunch] = node.copyFileLaunchProcessorFunc()
+
 	node.commandProcessorsMap[categorySplitOpen] = node.categorySplitOpenFunc()
 	node.commandProcessorsMap[categorySplitClose] = node.categorySplitCloseFunc()
 	return
 }
-
+/*
 func (node slaveApplicationNodeType) reportError(
 		command CommandType,
 		incomingErr error,
@@ -111,3 +113,4 @@ func (node slaveApplicationNodeType) reportError(
 	return
 }
 
+*/

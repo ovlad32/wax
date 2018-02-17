@@ -85,7 +85,7 @@ func (node *applicationNodeType) connectToNATS() (err error) {
 	node.logger.Info("Node has been connected to NATS")
 	return
 }
-
+/*
 func (node applicationNodeType) CallCommandByNodeId(
 	nodeId NodeIdType,
 	command CommandType,
@@ -96,7 +96,7 @@ func (node applicationNodeType) CallCommandByNodeId(
 		command,
 		entries...
 	)
-}
+}*/
 
 func (node applicationNodeType) RequestCommandBySubject(
 	subject SubjectType,
@@ -152,11 +152,13 @@ func (node applicationNodeType) PublishCommandResponse(
 
 	response := &CommandMessageType{
 		Command:command,
+		Params:make(CommandMessageParamMap),
 	}
 	for _, e := range entries {
+	//	fmt.Printf("Key:%v/Value:%v",e.Key,e.Value)
 		if !e.Key.IsEmpty() {
 			if e.Key == errorParam {
-				response.Err = e.Value.(error)
+				response.Err = e.Value.(error).Error()
 			} else {
 				response.Params[e.Key] = e.Value
 			}
@@ -164,7 +166,7 @@ func (node applicationNodeType) PublishCommandResponse(
 	}
 	err = node.encodedConn.Publish(subject, response)
 	if err != nil {
-		err = errors.Wrapf(err, "could not publish '%v' response ",command)
+		err = errors.Wrapf(err, "could not publish '%v' response to subject %v ",command,subject)
 		return
 	}
 	return
@@ -178,6 +180,7 @@ func (node applicationNodeType) PublishCommand(
 
 	response := &CommandMessageType{
 		Command: command,
+		Params:make(CommandMessageParamMap),
 	}
 	for _, e := range entries {
 		if !e.Key.IsEmpty() {
@@ -192,7 +195,7 @@ func (node applicationNodeType) PublishCommand(
 
 	err = node.encodedConn.Flush()
 	if err != nil {
-		err = errors.Wrapf(err, "could not flush published command  %v ", command)
+		err = errors.Wrapf(err, "could not flush published command %v ", command)
 		node.logger.Error(err)
 		return
 	}

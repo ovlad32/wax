@@ -65,7 +65,7 @@ func (node *slaveApplicationNodeType) registerMaxPayloadSize(maxLoadedMsg *Comma
 }
 
 func (node *slaveApplicationNodeType) registerCommandProcessors() (err error){
-	node.commandProcessorsMap[parishClose] = node.parishCloseFunc()
+	//node.commandProcessorsMap[parishClose] = node.parishCloseFunc()
 	node.commandProcessorsMap[parishStopWorker] = node.parishStopWorkerFunc()
 
 	node.commandProcessorsMap[fileStats] = node.fileStatsProcessorFunc()
@@ -73,8 +73,8 @@ func (node *slaveApplicationNodeType) registerCommandProcessors() (err error){
 	node.commandProcessorsMap[copyFileDataSubscribe] = node.copyFileDataSubscriptionProcessorFunc()
 	node.commandProcessorsMap[copyFileLaunch] = node.copyFileLaunchProcessorFunc()
 
-	node.commandProcessorsMap[categorySplitOpen] = node.categorySplitOpenFunc()
-	node.commandProcessorsMap[categorySplitClose] = node.categorySplitCloseFunc()
+	//node.commandProcessorsMap[categorySplitOpen] = node.categorySplitOpenFunc()
+	//node.commandProcessorsMap[categorySplitClose] = node.categorySplitCloseFunc()
 	return
 }
 /*

@@ -33,7 +33,7 @@ func (node *slaveApplicationNodeType) makeCommandSubscription() (err error) {
 			node.logger.Error(err)
 			return
 		}
-		response, err := node.CallCommandBySubject(
+		response, err := node.RequestCommandBySubject(
 			masterCommandSubject,
 			parishOpen,
 			NewCommandMessageParams(2).
@@ -57,9 +57,11 @@ func (node *slaveApplicationNodeType) makeCommandSubscription() (err error) {
 			node.logger.Error(err)
 			return
 		}
+		if response.Command != parishOpen {
+			err = errors.Errorf("unexpected response command '%v', got '%v'",parishOpen,response.Command)
+			node.logger.Fatal("Slave '%v' registration has been done", node.NodeId())
+		}
 		node.logger.Infof("Slave '%v' registration has been done", node.NodeId())
-		//if response.Command == parishOpened
-		//TODO:  parishOpened
 		if response.ParamBool(slaveResubscribedParam, false) {
 			node.logger.Warnf("Slave '%v' command subscription had been created before...", node.NodeId())
 			//Todo: clean
@@ -77,10 +79,10 @@ func (node *slaveApplicationNodeType) makeCommandSubscription() (err error) {
 
 func (node *slaveApplicationNodeType) commandSubscriptionFunc() func(string, string, *CommandMessageType) {
 	var err error
-	return func(subj, reply string, msg *CommandMessageType) {
+	return func(subject, replySubject string, msg *CommandMessageType) {
 		node.logger.Infof("Slave '%v' node command message: %v", node.NodeId(), msg.Command)
 		if processor, found := node.commandProcessorsMap[msg.Command]; found {
-			err = processor(reply, msg)
+			err = processor(subject,replySubject, msg)
 			if err != nil {
 				//TODO:
 			}

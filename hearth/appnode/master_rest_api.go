@@ -125,7 +125,7 @@ func (node masterApplicationNodeType) copyfile(
 		node.logger.Error(err)
 		return
 	}
-	if statsResp.Err != nil {
+	if statsResp.Err != "" {
 		err  = errors.Errorf("response from source node with error: %v",statsResp.Err)
 		node.logger.Error(err)
 		return
@@ -136,8 +136,12 @@ func (node masterApplicationNodeType) copyfile(
 		node.logger.Error(err)
 		return
 	}
-	fileSize := statsResp.ParamInt64(fileSizeParam,0)
-	if fileSize == 0 {
+	fileSize := statsResp.ParamInt64(fileSizeParam,-1)
+	if fileSize == -1{
+		err  = errors.Errorf("fileSizeParam parameter is absent")
+		node.logger.Error(err)
+		return
+	} else if fileSize == 0 {
 		err  = errors.Errorf("source file is empty: %v",srcFile)
 		node.logger.Error(err)
 		return
@@ -173,7 +177,8 @@ func (node masterApplicationNodeType) copyfile(
 		return
 	}
 
-	if subsResp.Err != nil{
+	if subsResp.Err != ""{
+
 		return
 	}
 	dataSubject := subsResp.ParamSubject(workerSubjectParam)

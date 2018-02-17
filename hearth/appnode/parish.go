@@ -10,17 +10,17 @@ const (
 	slaveIdParam             CommandMessageParamType = "slaveId"
 	slaveResubscribedParam        CommandMessageParamType = "slaveResubscribed"
 
-	parishOpen   CommandType = "PARISH.OPEN.M"
-	parishOpened CommandType = "PARISH.OPENED.S"
-	parishClose  CommandType = "PARISH.CLOSE.M"
-	parishClosed CommandType = "PARISH.CLOSED.S"
+	parishOpen   CommandType = "PARISH.OPEN"
+	//parishOpened CommandType = "PARISH.OPENED.S"
+	//parishClose  CommandType = "PARISH.CLOSE"
+	//parishClosed CommandType = "PARISH.CLOSED.S"
 	parishStopWorker CommandType = "PARISH.CANCEL.JOB"
 )
 
 
 
 func (node masterApplicationNodeType) parishOpenFunc() commandProcessorFuncType {
-	return func(reply string, msg *CommandMessageType) (err error) {
+	return func(subject,replySubject string, msg *CommandMessageType) (err error) {
 		slaveCommandSubject := msg.ParamSubject(slaveCommandSubjectParam)
 		if slaveCommandSubject.IsEmpty() {
 			node.logger.Warn("gotten slave command subject is empty!")
@@ -49,7 +49,7 @@ func (node masterApplicationNodeType) parishOpenFunc() commandProcessorFuncType 
 		} else {
 			node.slaveCommandMux.RUnlock()
 		}
-		err = node.PublishCommandResponse(reply, parishOpened, params...)
+		err = node.PublishCommandResponse(replySubject, msg.Command, params...)
 		if err != nil {
 			err = errors.Wrapf(err, "could not reply of opening a new slave")
 			return
@@ -63,39 +63,12 @@ func (node masterApplicationNodeType) parishOpenFunc() commandProcessorFuncType 
 
 }
 
-func (node slaveApplicationNodeType) parishCloseFunc() commandProcessorFuncType {
-	return func(reply string, msg *CommandMessageType) (err error) {
-		node.logger.Warnf("Signal of closing Slave '%v' command subscription has been received", node.NodeId())
-		if node.commandSubscription != nil {
-			err := node.commandSubscription.Unsubscribe()
-			if err != nil {
-				node.logger.Error(err)
-			}
-		}
-		node.encodedConn.Publish(
-			reply,
-			&CommandMessageType{
-				Command: parishClosed,
-			})
-		/*err := node.CloseRegularWorker(
-			reply,
-			msg,
-			parishClosed,
-		)
-		if err != nil {
-			panic(err.Error())
-		}*/
-		node.encodedConn.Close()
-		os.Exit(0)
-		return
-	}
-}
 
 
 
 func (node slaveApplicationNodeType) parishStopWorkerFunc() commandProcessorFuncType {
-	return func(reply string, msg *CommandMessageType) (err error) {
-		//node.logger.Warnf("Signal Slave '%v' command subscription has been received", node.NodeId())
+	return func(subject,replySubject string, msg *CommandMessageType) (err error) {
+		node.logger.Warnf("Slave '%v': Shutdown signal received", node.NodeId())
 
 		//of stopping worker on
 
@@ -111,12 +84,12 @@ func (node slaveApplicationNodeType) parishStopWorkerFunc() commandProcessorFunc
 				node.logger.Error(err)
 			}
 		}
-		node.encodedConn.Publish(
-			reply,
+		/*node.encodedConn.Publish(
+			replySubject,
 			&CommandMessageType{
 				Command: parishClosed,
 			})
-		/*err := node.CloseRegularWorker(
+		err := node.CloseRegularWorker(
 			reply,
 			msg,
 			parishClosed,

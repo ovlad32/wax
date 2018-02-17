@@ -41,7 +41,11 @@ type ApplicationNodeConfigType struct {
 }
 
 
-type commandProcessorFuncType func(replySubject string,incomingMessage *CommandMessageType) (err error)
+type commandProcessorFuncType func(
+	subject string,
+	replySubject string,
+	incomingMessage *CommandMessageType,
+) (err error)
 
 
 

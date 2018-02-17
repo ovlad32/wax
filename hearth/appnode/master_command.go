@@ -26,15 +26,15 @@ func (node *masterApplicationNodeType) makeCommandSubscription() (err error) {
 }
 
 func (node *masterApplicationNodeType) commandSubscriptionFunc() commandProcessorFuncType {
-	return func(replySubject string, incomingMessage *CommandMessageType) (err error) {
+	return func(subject,replySubject string, incomingMessage *CommandMessageType) (err error) {
 		node.logger.Infof("Master node command message: %v", incomingMessage.Command)
 		if processor, found := node.commandProcessorsMap[incomingMessage.Command];found {
-			err = processor(replySubject,incomingMessage)
+			err = processor(subject,replySubject,incomingMessage)
 			if err != nil {
 				//TODO:
 			}
 		} else {
-			panic(fmt.Sprintf("%v: cannot recognize incoming message command '%v' ",incomingMessage.Command))
+			panic(fmt.Sprintf("%v: cannot recognize incoming message command '%v' ",node.NodeId(),incomingMessage.Command))
 		}
 		return
 	}
@@ -45,19 +45,14 @@ func (node *masterApplicationNodeType) closeAllCommandSubscription() (err error)
 	node.slaveCommandMux.Lock()
 	defer node.slaveCommandMux.Unlock()
 	for _, subj:= range node.slaveCommandSubjects {
-		response, err := node.CallCommandBySubject(
+		err = node.PublishCommand(
 			subj,
-			parishClose,
+			parishStopWorker,
 		)
+		//if err != nil {
+		//	node.logger.Error(err)
+		//}
 
-		if err != nil {
-			node.logger.Error(err)
-		}
-
-		if response.Command != parishClosed {
-			err = errors.Errorf("Expected command '%v' got '%v'",parishClosed,response.Command)
-			node.logger.Error(err)
-		}
 	}
 	node.slaveCommandSubjects = make(map[NodeIdType]SubjectType)
 	node.logger.Warnf("Slave command subscriptions have been closed")

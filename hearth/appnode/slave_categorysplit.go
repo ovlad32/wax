@@ -1,12 +1,6 @@
 package appnode
 
-import (
-	"fmt"
-	"github.com/nats-io/go-nats"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-)
-
+/*
 
 const (
 	categorySplitOpen   CommandType = "SPLIT.CREATE"
@@ -22,7 +16,7 @@ const (
 
 
 type categorySplitWorker struct {
-	basicWorker
+	basicWorkerType
 	enc    *nats.EncodedConn
 	logger *logrus.Logger
 }
@@ -130,3 +124,4 @@ func newCategorySplitWorker(
 	return
 }
 
+*/

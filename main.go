@@ -37,6 +37,7 @@ var applicationRole = flag.String("role", "", "")
 var masterNodeHost = flag.String("masterHost", "localhost", "")
 var masterNodePort = flag.String("masterPort", "9100", "")
 var nodeIdDirectory = flag.String("nodeIdDir", "nodeId", "")
+var monitoringPort = flag.Int64("mport", 0, "")
 
 func main() {
 	flag.Parse()
@@ -96,19 +97,21 @@ func main() {
 				AstraConfig:    *config,
 				NATSEndpoint:   nats.DefaultURL,
 				IsMaster:       true,
-				MasterRestPort: 9200,
+				RestAPIPort: 9200,
 			},
 		)
 		if err != nil {
 			stdlog.Fatal(err)
 		}
 	} else if *applicationRole == "slave" {
-		//-role slave -nodeIdDir=nodeId1
+		//-role slave -nodeIdDir=nodeId1 -mport 9202
+
 		err := appnode.NewApplicationNode(
 			&appnode.ApplicationNodeConfigType{
 				AstraConfig:  *config,
 				NATSEndpoint: nats.DefaultURL,
 				NodeId:    appnode.NodeIdType(*nodeIdDirectory),
+				RestAPIPort: int(*monitoringPort),
 			},
 		)
 		if err != nil {

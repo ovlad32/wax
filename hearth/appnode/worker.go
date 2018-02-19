@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/nats-io/nuid"
+	"reflect"
 )
 
 const (
@@ -28,9 +29,10 @@ func (c WorkerIdType) IsEmpty() bool {
 
 type WorkerInterface interface {
 	Id() WorkerIdType
-	Subject() (subject SubjectType)
+	CounterpartSubject() (subject SubjectType)
 	Unsubscribe() (err error)
 	CancelCurrentJob()
+	JSONMap() map[string]interface{}
 }
 
 type WorkerHolderInterface interface {
@@ -42,13 +44,14 @@ type WorkerHolderInterface interface {
 
 type basicWorkerType struct {
 	//NATS section
-	id WorkerIdType
-	node *slaveApplicationNodeType
-	subscription   *nats.Subscription
-	subject        SubjectType
-	jobContext context.Context
-	jobCancelFunc context.CancelFunc
+	id                 WorkerIdType
+	node               *slaveApplicationNodeType
+	subscription       *nats.Subscription
+	counterpartSubject SubjectType
+	jobContext         context.Context
+	jobCancelFunc      context.CancelFunc
 }
+
 
 func newWorkersMap() (map[WorkerIdType]WorkerInterface) {
 	return make(map[WorkerIdType]WorkerInterface)
@@ -72,8 +75,8 @@ func (worker *basicWorkerType) Unsubscribe() (err error) {
 }
 
 
-func (worker *basicWorkerType) Subject() (subject SubjectType) {
-	return worker.subject
+func (worker *basicWorkerType) CounterpartSubject() (subject SubjectType) {
+	return worker.counterpartSubject
 }
 
 func (worker *basicWorkerType) Id() (WorkerIdType) {
@@ -85,6 +88,24 @@ func (worker *basicWorkerType) CancelCurrentJob() {
 		worker.jobCancelFunc()
 	}
 }
+
+func(worker basicWorkerType ) JSONMap() map[string]interface{} {
+	result:= make(map[string]interface{})
+	t := reflect.TypeOf(worker)
+	result["worker"] = t.String()
+
+	if !worker.counterpartSubject.IsEmpty() {
+		result["counterpartSubject"] = worker.counterpartSubject
+	}
+	if worker.subscription != nil {
+		result["subscription"] = worker.subscription.Subject
+	}
+	return result
+}
+
+
+
+
 /*
 func (worker basicWorker) reportError(command CommandType, incoming error) (err error) {
 

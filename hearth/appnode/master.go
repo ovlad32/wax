@@ -17,7 +17,6 @@ type masterApplicationNodeType struct {
 	*applicationNodeType
 	slaveCommandMux sync.RWMutex
 	slaveCommandSubjects map[NodeIdType]SubjectType
-	//TODO: CancelFunc!!!
 }
 
 

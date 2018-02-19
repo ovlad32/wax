@@ -37,7 +37,8 @@ type ApplicationNodeConfigType struct {
 	NATSEndpoint   string
 	IsMaster       bool
 	NodeId         NodeIdType
-	MasterRestPort int
+	RestAPIPort int
+	//MonitorPort int
 }
 
 

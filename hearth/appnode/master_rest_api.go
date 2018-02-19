@@ -391,7 +391,7 @@ func (node *masterApplicationNodeType) initRestApiRouting() (srv *http.Server, e
 	r.HandleFunc("/util/copyfile",node.copyFileHandlerFunc()).Methods("POST")
 
 	//defer node.wg.Done()
-	address := fmt.Sprintf(":%d",node.config.MasterRestPort)
+	address := fmt.Sprintf(":%d",node.config.RestAPIPort)
 	srv = &http.Server{
 		Handler: r,
 		Addr:    address,

@@ -75,7 +75,7 @@ func (node slaveApplicationNodeType) parishStopWorkerFunc() commandProcessorFunc
 		workerId := msg.ParamWorkerId(workerIdParam);
 		worker := node.FindWorker(workerId)
 		if worker != nil {
-			worker.CancelCurrentJob();
+			worker.TaskCanceled();
 		}
 
 		if node.commandSubscription != nil {

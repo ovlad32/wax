@@ -128,7 +128,7 @@ func (node *slaveApplicationNodeType) copyFileDataSubscriptionProcessorFunc() co
 		worker.pathToTempFile = tempFile.Name()
 		worker.file = tempFile
 
-		worker.jobContext, worker.jobCancelFunc = context.WithCancel(context.Background())
+		worker.taskCancelContext, worker.taskCancelFunc = context.WithCancel(context.Background())
 		worker.subscription, err = node.Subscribe(
 			dataSubject,
 			worker.subscriptionFunc(),
@@ -177,7 +177,7 @@ func (node *slaveApplicationNodeType) copyFileLaunchProcessorFunc() commandProce
 				},
 			},
 		}
-		worker.jobContext, worker.jobCancelFunc = context.WithCancel(context.Background())
+		worker.taskCancelContext, worker.taskCancelFunc= context.WithCancel(context.Background())
 
 		logger := worker.logger()
 
@@ -219,7 +219,7 @@ func (node *slaveApplicationNodeType) copyFileLaunchProcessorFunc() commandProce
 		go func() {
 			if err = func() (err error) {
 				select {
-				case _ = <-worker.jobContext.Done():
+				case _ = <-worker.taskCancelContext.Done():
 					worker.CloseFile()
 					worker.Unsubscribe()
 					return
@@ -318,7 +318,7 @@ func (node *slaveApplicationNodeType) copyFileLaunchProcessorFunc() commandProce
 							}
 							worker.CloseFile()
 							worker.Unsubscribe()
-							node.RemoveWorker(worker.Id())
+							node.RemoveWorker(worker)
 							return
 						}
 					}
@@ -332,7 +332,7 @@ func (node *slaveApplicationNodeType) copyFileLaunchProcessorFunc() commandProce
 					err = errors.Wrapf(err, "could not send copyfile failure command")
 					worker.logger().Error(err)
 				}
-				node.RemoveWorker(worker.Id())
+				node.RemoveWorker(worker)
 				return
 			}
 		}()
@@ -341,17 +341,20 @@ func (node *slaveApplicationNodeType) copyFileLaunchProcessorFunc() commandProce
 	}
 }
 
-func (worker *copyFileWriter) CancelCurrentJob() {
-	if worker.jobCancelFunc != nil {
-		worker.jobCancelFunc()
+func (worker *copyFileWriter) TaskCanceled() {
+	if worker.taskCancelFunc != nil {
+		worker.taskCancelFunc()
 	}
-	worker.logger().Warnf("Slave '%v': Cancel current job called")
+	worker.logger().Warnf("Slave '%v': Cancel current task called",worker.node.NodeId())
 	worker.CloseFile()
 	worker.RemoveTempFile()
-	worker.RemoveFile()
+	worker.RemoveTargetFile()
 	worker.Unsubscribe()
 }
+func (worker *copyFileWriter) TaskDone() {
+	worker.node.RemoveWorker(worker)
 
+}
 func (worker *copyFileWorkerType) enc() *nats.EncodedConn {
 	return worker.node.encodedConn
 }
@@ -398,6 +401,7 @@ func (worker *copyFileWriter) subscriptionFunc() commandProcessorFuncType {
 					if err != nil {
 						err = errors.Wrapf(err, "could not rename received file to %v", worker.pathToFile)
 					}
+					worker.node.RemoveWorker(worker)
 					return
 				}
 				return
@@ -416,11 +420,12 @@ func (worker *copyFileWriter) subscriptionFunc() commandProcessorFuncType {
 				worker.CloseFile()
 				worker.RemoveTempFile()
 				worker.Unsubscribe()
+				worker.TaskDone()
 				return
 			}
 
 		case copyFileError:
-			worker.CancelCurrentJob()
+			worker.TaskCanceled()
 			return
 		default:
 			err = errors.Errorf("unexpected command ", incomingMessage.Command)
@@ -448,7 +453,7 @@ func (worker *copyFileWorkerType) CloseFile() (err error) {
 	return
 }
 
-func (worker *copyFileWriter) RemoveFile() (err error) {
+func (worker *copyFileWriter) RemoveTargetFile() (err error) {
 	if len(worker.pathToFile) != 0 {
 		err = os.Remove(worker.pathToFile)
 		if err != nil && !os.IsNotExist(err) {

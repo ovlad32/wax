@@ -31,7 +31,8 @@ type WorkerInterface interface {
 	Id() WorkerIdType
 	CounterpartSubject() (subject SubjectType)
 	Unsubscribe() (err error)
-	CancelCurrentJob()
+	TaskCanceled()
+	TaskDone()
 	JSONMap() map[string]interface{}
 }
 
@@ -48,8 +49,8 @@ type basicWorkerType struct {
 	node               *slaveApplicationNodeType
 	subscription       *nats.Subscription
 	counterpartSubject SubjectType
-	jobContext         context.Context
-	jobCancelFunc      context.CancelFunc
+	taskCancelContext  context.Context
+	taskCancelFunc     context.CancelFunc
 }
 
 
@@ -83,9 +84,9 @@ func (worker *basicWorkerType) Id() (WorkerIdType) {
 	return worker.id
 }
 
-func (worker *basicWorkerType) CancelCurrentJob() {
-	if worker.jobCancelFunc != nil {
-		worker.jobCancelFunc()
+func (worker *basicWorkerType) TaskCanceled() {
+	if worker.taskCancelFunc != nil {
+		worker.taskCancelFunc()
 	}
 }
 
@@ -176,9 +177,9 @@ func (node *slaveApplicationNodeType) FindWorker(id WorkerIdType) WorkerInterfac
 	return nil
 }
 
-func (node *slaveApplicationNodeType) RemoveWorker(id WorkerIdType) {
+func (node *slaveApplicationNodeType) RemoveWorker(w WorkerInterface) {
 	node.workerMux.Lock()
-	delete(node.workers, id)
+	delete(node.workers, w.Id())
 	node.workerMux.Unlock()
 }
 
@@ -213,10 +214,10 @@ func (node *slaveApplicationNodeType) CloseRegularWorker(
 		},
 	)
 	if err != nil {
-		err = errors.Wrapf(err, "could not publish reply of closing %v worker id",  worker.Subject())
+		err = errors.Wrapf(err, "could not publish reply of closing %v worker id",  worker.Id())
 		node.logger.Error(err)
 		return err
 	}
-	node.RemoveWorker(worker.Id())
+	node.RemoveWorker(worker)
 	return
 }

@@ -85,7 +85,7 @@ func (node *slaveApplicationNodeType) registerCommandProcessors() (err error){
 
 	node.commandProcessorsMap[fileStats] = node.fileStatsProcessorFunc()
 
-	node.commandProcessorsMap[copyFileDataSubscribe] = node.copyFileDataSubscriptionProcessorFunc()
+	node.commandProcessorsMap[copyFileOpen] = node.copyFileOpenProcessorFunc()
 	node.commandProcessorsMap[copyFileLaunch] = node.copyFileLaunchProcessorFunc()
 
 	//node.commandProcessorsMap[categorySplitOpen] = node.categorySplitOpenFunc()

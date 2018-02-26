@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"github.com/nats-io/gnatsd/logger"
 )
 
 type copyFileWorkerType struct {
@@ -29,19 +30,187 @@ type copyFileWriter struct {
 
 const filePathParam CommandMessageParamType = "filePathParam"
 const fileSizeParam CommandMessageParamType = "fileSizeParam"
+const fileReadingParam CommandMessageParamType = "fileReadingParam"
 const fileNotExistsParam CommandMessageParamType = "fileNotExistsParam"
 
 const fileStats CommandType = "FILE.STATS"
 
-const copyFileDataSubscribe CommandType = "COPYFILE.SUBS"
-const copyFileData CommandType = "COPYFILE.DATA"
-const copyFileError CommandType = "COPYFILE.ERROR"
-const copyFileLaunch CommandType = "COPYFILE.LAUNCH"
+const copyFileOpen CommandType = "CMD.COPYFILE.OPEN"
+const copyFileData CommandType = "WRK.COPYFILE.DATA"
+const copyFileError CommandType = "CMD.COPYFILE.ERROR"
+const copyFileLaunch CommandType = "CMD.COPYFILE.LAUNCH"
 
 const (
 	copyFileDataParam CommandMessageParamType = "data"
 	copyFileEOFParam  CommandMessageParamType = "EOF"
 )
+
+
+
+func (node masterApplicationNodeType) copyFile(
+	srcNodeId,
+	srcFile,
+	tgtNodeId,
+	tgtFile string,
+) (subject string, err error) {
+
+	sourceNodeId := NodeIdType(srcNodeId)
+	if sourceNodeId.IsEmpty() {
+		//TODO:
+	}
+
+	targetNodeId := NodeIdType(tgtNodeId)
+	if sourceNodeId.IsEmpty() {
+		//TODO:
+	}
+	var sourceResp, targetResp *CommandMessageType
+	var targetDataSubject SubjectType
+	var sourceWorkerId,targetWorkerId WorkerIdType
+	var sourceFileSize int64
+
+	SourceRequest := func (command CommandType, params CommandMessageParamEntryArrayType) (resp *CommandMessageType, err error) {
+		resp, err = node.RequestCommandBySubject(
+			sourceNodeId.CommandSubject(),
+			command,
+			params...
+		)
+		if resp == nil {
+			err = errors.Errorf("%v response from source node is not initialized", command)
+			return
+		}
+		if resp.Command != command {
+			err = errors.Wrapf(err, "%v: response from source node is not recognized: %v", command, resp.Command)
+			return
+		}
+		if resp.Err != nil {
+			err = errors.Errorf("%v: response from source node with error: %v", command, resp.Err)
+			return
+		}
+		return
+	}
+
+	TargetRequest := func (command CommandType, params CommandMessageParamEntryArrayType) (resp *CommandMessageType, err error) {
+		targetResp, err = node.RequestCommandBySubject(
+			targetNodeId.CommandSubject(),
+			command,
+			params...
+		)
+
+		if targetResp == nil {
+			err = errors.Errorf("%v: response from target node with error: %v", command,targetResp.Err)
+			return
+		}
+		if targetResp.Command != command {
+			err = errors.Wrapf(err, "%v: response from target node is not recognized: %v", command, targetResp.Command)
+			return
+		}
+
+		if targetResp.Err != nil {
+			err = errors.Errorf("%v: response from target node with error: %v", command, targetResp.Err)
+			return
+		}
+		return
+	}
+
+
+	if sourceResp, err = SourceRequest(
+		fileStats,
+		NewCommandMessageParams(1).
+			Append(filePathParam, srcFile),
+	); err != nil {
+		//TODO:
+		node.logger.Error(err)
+		return
+	} else if err = func ()(err error) {
+		fileNotExists := sourceResp.ParamBool(fileNotExistsParam, false)
+		if fileNotExists {
+			err = errors.Errorf("%v: source file does not exist: %v", sourceResp.Command, srcFile)
+			return
+		}
+		sourceFileSize = sourceResp.ParamInt64(fileSizeParam, -1)
+		if sourceFileSize == -1 {
+			err = errors.Errorf("%v: fileSizeParam parameter is absent", sourceResp.Command)
+			return
+		} else if sourceFileSize == 0 {
+			err = errors.Errorf("%v: source file is empty: %v", sourceResp.Command, srcFile)
+			return
+		}
+		return
+	}(); err != nil {
+		//TODO:
+		node.logger.Error(err)
+		return
+	} else if targetResp, err = TargetRequest(
+		copyFileOpen,
+		NewCommandMessageParams(3).
+			Append(fileReadingParam,false).
+			Append(filePathParam,tgtFile).
+			Append(fileSizeParam,sourceFileSize),
+		); err != nil {
+		//TODO:
+		node.logger.Error(err)
+		return
+	} else if err = func() (err error) {
+		targetDataSubject = targetResp.ParamSubject(workerSubjectParam)
+		if targetDataSubject.IsEmpty() {
+			err = errors.Errorf("%v: target writer subject is empty", targetResp.Command)
+			return
+		}
+
+		targetWorkerId := targetResp.ParamWorkerId(workerIdParam)
+		if targetWorkerId.IsEmpty() {
+			err = errors.Errorf("%v: target writer worker id is empty", targetResp.Command)
+			return
+		}
+		return
+	}(); err != nil {
+		//TODO:
+		node.logger.Error(err)
+		return
+	} else if  sourceResp, err = SourceRequest(
+		copyFileOpen,
+		NewCommandMessageParams(4).
+			Append(fileReadingParam, true).
+			Append(workerIdParam, targetWorkerId).
+			Append(workerSubjectParam, targetDataSubject).
+			Append(filePathParam, srcFile),
+	); err != nil {
+		//TODO KILL target worker
+		//TODO:
+		node.logger.Error(err)
+		return
+	} else if err = func() (err error) {
+		sourceWorkerId = sourceResp.ParamWorkerId(workerIdParam)
+		if sourceWorkerId.IsEmpty() {
+			err = errors.Errorf("%v: source reader worker id is empty", sourceResp.Command)
+			return
+		}
+		return
+	}(); err != nil {
+		//TODO KILL target worker
+		//TODO:
+		node.logger.Error(err)
+		return
+	} else {
+		
+	}
+
+
+	return
+
+
+
+	err = node.PublishCommand(
+		sourceNodeId.CommandSubject(),
+		copyFileLaunch,
+		NewCommandMessageParams(1).
+			Append(filePathParam,srcFile).
+			Append(workerSubjectParam,dataSubject)...
+	)
+
+	return dataSubject.String(),nil
+}
+
 
 func (node slaveApplicationNodeType) fileStatsProcessorFunc() commandProcessorFuncType {
 	return func(subject, replySubject string, incomingMessage *CommandMessageType) (err error) {
@@ -77,75 +246,134 @@ func (node slaveApplicationNodeType) fileStatsProcessorFunc() commandProcessorFu
 	}
 }
 
-func (node *slaveApplicationNodeType) copyFileDataSubscriptionProcessorFunc() commandProcessorFuncType {
+func (node *slaveApplicationNodeType) copyFileOpenProcessorFunc() commandProcessorFuncType {
+
 	return func(subject, replySubject string, incomingMessage *CommandMessageType) (err error) {
 		replyParams := NewCommandMessageParams(3)
 
 		reply := func() (err error) {
 			err = node.PublishCommandResponse(
 				replySubject,
-				copyFileDataSubscribe,
+				copyFileOpen,
 				replyParams...,
 			)
 			if err != nil {
-				err = errors.Wrapf(err, "could not publish subscription %v response: ", copyFileDataSubscribe)
+				err = errors.Wrapf(err, "could not publish subscription %v response: ", copyFileOpen)
+				return
+			}
+			return
+		}
+		createWriter := func () (err error) {
+			logger := node.logger;
+
+			writer := &copyFileWriter{
+				copyFileWorkerType: copyFileWorkerType{
+					basicWorkerType: basicWorkerType{
+						id:   newWorkerId(),
+						node: node,
+					},
+				},
+			}
+
+			dataSubject := newPrefixSubject("CopyFileData")
+
+			writer.pathToFile = incomingMessage.ParamString(filePathParam, "")
+
+			if writer.pathToFile == "" {
+				err = errors.New("path to target file is empty")
+				logger.Error(err)
+				replyParams = replyParams.Append(errorParam, err)
+				reply()
+				return
+			}
+
+			dir, _ := path.Split(writer.pathToFile)
+			var tempFile *os.File
+			tempFile, err = ioutil.TempFile(dir, "tmp_")
+			if err != nil {
+				err = errors.Wrapf(err, "could not create temp file at %v:", dir)
+				logger.Error(err)
+				replyParams = replyParams.Append(errorParam, err)
+				reply()
+				return
+			}
+
+			writer.pathToTempFile = tempFile.Name()
+			writer.file = tempFile
+
+			writer.subscription, err = node.Subscribe(
+				dataSubject,
+				writer.subscriptionFunc(),
+			)
+			if err != nil {
+				replyParams = replyParams.Append(errorParam, err)
+				reply()
+				return
+			}
+
+			replyParams = replyParams.Append(workerSubjectParam, dataSubject)
+			replyParams = replyParams.Append(workerIdParam, writer.Id())
+			err = reply()
+			if err != nil {
+				writer.Unsubscribe()
+			} else {
+				writer.taskCancelContext, writer.taskCancelFunc = context.WithCancel(context.Background())
+				node.AppendWorker(writer)
+			}
+			return
+		}
+
+		createReader := func() (err error) {
+			logger := node.logger;
+			reader := &copyFileReader{
+				copyFileWorkerType: copyFileWorkerType{
+					basicWorkerType: basicWorkerType{
+						id:   newWorkerId(),
+						node: node,
+					},
+				},
+			}
+			reader.taskCancelContext, reader.taskCancelFunc= context.WithCancel(context.Background())
+
+
+			reader.pathToFile = incomingMessage.ParamString(filePathParam, "")
+
+			if reader.pathToFile == "" {
+				err = errors.New("path to source file is empty")
+				logger.Error(err)
+				return
+			}
+
+			reader.counterpartSubject = incomingMessage.ParamSubject(workerSubjectParam)
+			if reader.counterpartSubject.IsEmpty() {
+				err = errors.New("write-worker data subject is empty")
+				logger.Error(err)
+				return
+			}
+
+			fileStats, err := os.Stat(reader.pathToFile)
+			if err != nil {
+				err = errors.Wrapf(err, "could not get source file information: %v", reader.pathToFile)
+				node.logger.Error(err)
+				return
+			}
+			if fileStats.Size() == 0 {
+				err = errors.Errorf("Source file is empty: %v", reader.pathToFile)
+				node.logger.Error(err)
 				return
 			}
 			return
 		}
 
-		dataSubject := newPrefixSubject("CopyFileData")
 
-		worker := &copyFileWriter{
-			copyFileWorkerType: copyFileWorkerType{
-				basicWorkerType: basicWorkerType{
-					id:   newWorkerId(),
-					node: node,
-				},
-			},
-		}
 
-		logger := worker.logger()
-
-		worker.pathToFile = incomingMessage.ParamString(filePathParam, "")
-
-		if worker.pathToFile == "" {
-			err = errors.New("path to file is empty")
-			logger.Error(err)
-			return
-		}
-
-		dir, _ := path.Split(worker.pathToFile)
-		var tempFile *os.File
-		tempFile, err = ioutil.TempFile(dir, "tmp_")
-		if err != nil {
-			err = errors.Wrapf(err, "could not create temp file at %v:", dir)
-			logger.Error(err)
-			replyParams = replyParams.Append(errorParam, err)
-			reply()
-			return
-		}
-		worker.pathToTempFile = tempFile.Name()
-		worker.file = tempFile
-
-		worker.taskCancelContext, worker.taskCancelFunc = context.WithCancel(context.Background())
-		worker.subscription, err = node.Subscribe(
-			dataSubject,
-			worker.subscriptionFunc(),
-		)
-		if err != nil {
-			replyParams = replyParams.Append(errorParam, err)
-			reply()
-			return
-		}
-
-		replyParams = replyParams.Append(workerSubjectParam, dataSubject)
-		err = reply()
-		if err != nil {
-			worker.Unsubscribe()
+		reading := incomingMessage.ParamBool(fileReadingParam,true)
+		if !reading {
+			err = createReader()
 		} else {
-			node.AppendWorker(worker)
+			err = createWriter()
 		}
+
 		return err
 	}
 
@@ -169,44 +397,7 @@ func (node *slaveApplicationNodeType) copyFileLaunchProcessorFunc() commandProce
 			return
 		}*/
 
-		worker := &copyFileReader{
-			copyFileWorkerType: copyFileWorkerType{
-				basicWorkerType: basicWorkerType{
-					id:   newWorkerId(),
-					node: node,
-				},
-			},
-		}
-		worker.taskCancelContext, worker.taskCancelFunc= context.WithCancel(context.Background())
 
-		logger := worker.logger()
-
-		worker.pathToFile = incomingMessage.ParamString(filePathParam, "")
-
-		if worker.pathToFile == "" {
-			err = errors.New("path to destination file is empty")
-			logger.Error(err)
-			return
-		}
-
-		worker.counterpartSubject = incomingMessage.ParamSubject(workerSubjectParam)
-		if worker.counterpartSubject.IsEmpty() {
-			err = errors.New("counterpart data subject is empty")
-			logger.Error(err)
-			return
-		}
-
-		fileStats, err := os.Stat(worker.pathToFile)
-		if err != nil {
-			err = errors.Wrapf(err, "could not get source file information: %v", worker.pathToFile)
-			node.logger.Error(err)
-			return
-		}
-		if fileStats.Size() == 0 {
-			err = errors.Errorf("Source file is empty: %v", worker.pathToFile)
-			node.logger.Error(err)
-			return
-		}
 
 		worker.file, err = os.Open(worker.pathToFile)
 		if err != nil {
@@ -325,7 +516,8 @@ func (node *slaveApplicationNodeType) copyFileLaunchProcessorFunc() commandProce
 				}
 			}(); err != nil {
 				worker.CloseFile()
-				err = node.PublishCommand(worker.counterpartSubject,
+				err = node.PublishCommand(
+					worker.counterpartSubject,
 					copyFileError,
 				)
 				if err != nil {
@@ -495,3 +687,6 @@ func(worker copyFileWriter ) JSONMap() map[string]interface{} {
 	return result
 }
 
+func (worker *copyFileReader) TaskDone() {
+	worker.node.RemoveWorker(worker)
+}

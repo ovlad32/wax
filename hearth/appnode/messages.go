@@ -18,7 +18,7 @@ type CommandMessageParamMap map[CommandMessageParamType]interface{}
 
 type CommandMessageType struct {
 	Command CommandType
-	Err     string
+	Err     error
 	Params  CommandMessageParamMap
 	//mux sync.Mutex
 }

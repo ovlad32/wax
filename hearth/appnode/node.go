@@ -74,6 +74,8 @@ func (node *applicationNodeType) connectToNATS() (err error) {
 	gob.Register(SubjectType(""))
 	gob.Register(NodeIdType(""))
 	gob.Register(WorkerIdType(""))
+	gob.Register(errors.New(""))
+	gob.Register(fmt.Errorf(""))
 
 	node.encodedConn, err = nats.NewEncodedConn(conn, nats.GOB_ENCODER)
 
@@ -158,7 +160,7 @@ func (node applicationNodeType) PublishCommandResponse(
 	//	fmt.Printf("Key:%v/Value:%v",e.Key,e.Value)
 		if !e.Key.IsEmpty() {
 			if e.Key == errorParam {
-				response.Err = e.Value.(error).Error()
+				response.Err = e.Value.(error)
 			} else {
 				response.Params[e.Key] = e.Value
 			}

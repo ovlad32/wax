@@ -21,7 +21,7 @@ type applicationNodeType struct {
 	//
 	//
 	logger                 *logrus.Logger
-	commandProcessorsMap commandProcessorsMapType
+	commandFuncMap commandFuncMapType
 }
 const (
 	MasterNodeId NodeIdType = "MASTER"
@@ -142,6 +142,19 @@ func (node applicationNodeType) RequestCommandBySubject(
 		node.logger.Error(err)
 		return
 	}
+
+	if incomingMessage == nil {
+		err = errors.Errorf("%v-command response is not initialized", command)
+		return
+	}
+	if incomingMessage.Command != command {
+		err = errors.Wrapf(err, "%-command response command %v is not expected. Expected: %v", command, incomingMessage.Command,command)
+		return
+	}
+	if incomingMessage.Err != nil {
+		err = errors.Errorf("%v-command response with error: %v", command, incomingMessage.Err)
+		return
+	}
 	response = incomingMessage
 	return
 }
@@ -214,7 +227,7 @@ func (node applicationNodeType) PublishCommand(
 
 func (node applicationNodeType) Subscribe(
 	subject SubjectType,
-	processor commandProcessorFuncType,
+	processor commandFuncType,
 ) (result *nats.Subscription, err error) {
 
 	subscription, err := node.encodedConn.Subscribe(

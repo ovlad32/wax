@@ -76,7 +76,7 @@ func (node masterApplicationNodeType) copyFileHandlerFunc() func (http.ResponseW
 			return
 		}
 
-		subj,err := node.copyfile(sourceNodeId,sourceFile,targetNodeId,targetFile);
+		subj,err := node.copyFile(sourceNodeId,sourceFile,targetNodeId,targetFile);
 		node.logger.Info(subj);
 		if err!= nil {
 			node.logger.Error(err);

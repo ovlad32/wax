@@ -79,7 +79,6 @@ func (m CommandMessageType) ParamSubject(name CommandMessageParamType) (result S
 }
 
 
-
 func (m CommandMessageType) ParamNodeId(name CommandMessageParamType) (result NodeIdType) {
 	val, found := m.Params[name]
 	if !found {
@@ -105,3 +104,5 @@ func (m CommandMessageType) ParamWorkerId(name CommandMessageParamType) (result 
 	}
 	return result
 }
+
+

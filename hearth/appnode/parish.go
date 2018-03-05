@@ -19,7 +19,7 @@ const (
 
 
 
-func (node masterApplicationNodeType) parishOpenFunc() commandProcessorFuncType {
+func (node masterApplicationNodeType) parishOpenFunc() commandFuncType {
 	return func(subject,replySubject string, msg *CommandMessageType) (err error) {
 		slaveCommandSubject := msg.ParamSubject(slaveCommandSubjectParam)
 		if slaveCommandSubject.IsEmpty() {
@@ -66,7 +66,7 @@ func (node masterApplicationNodeType) parishOpenFunc() commandProcessorFuncType 
 
 
 
-func (node slaveApplicationNodeType) parishStopWorkerFunc() commandProcessorFuncType {
+func (node slaveApplicationNodeType) parishStopWorkerFunc() commandFuncType {
 	return func(subject,replySubject string, msg *CommandMessageType) (err error) {
 		node.logger.Warnf("Slave '%v': Shutdown signal received", node.NodeId())
 
@@ -75,7 +75,7 @@ func (node slaveApplicationNodeType) parishStopWorkerFunc() commandProcessorFunc
 		workerId := msg.ParamWorkerId(workerIdParam);
 		worker := node.FindWorker(workerId)
 		if worker != nil {
-			worker.TaskCanceled();
+			worker.Terminate();
 		}
 
 		if node.commandSubscription != nil {

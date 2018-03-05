@@ -10,6 +10,7 @@ import (
 )
 
 const (
+	distributedTaskIdParam CommandMessageParamType = "distTaskId"
 	workerSubjectParam CommandMessageParamType = "workerSubject"
 	workerIdParam CommandMessageParamType = "workerId"
 )
@@ -31,16 +32,17 @@ type WorkerInterface interface {
 	Id() WorkerIdType
 	CounterpartSubject() (subject SubjectType)
 	Unsubscribe() (err error)
-	TaskCanceled()
-	TaskDone()
+	Terminate()
 	JSONMap() map[string]interface{}
 }
 
 type WorkerHolderInterface interface {
 	AppendWorker(a WorkerInterface)
 	FindWorker(id WorkerIdType) WorkerInterface
-	RemoveWorker(id WorkerIdType)
-	CloseRegularWorker(id WorkerIdType)
+	RemoveWorker(w WorkerInterface)
+	CloseRegularWorker(w WorkerInterface)
+	Done(w WorkerInterface)
+	Error(w WorkerInterface, err error)
 }
 
 type basicWorkerType struct {
@@ -84,7 +86,7 @@ func (worker *basicWorkerType) Id() (WorkerIdType) {
 	return worker.id
 }
 
-func (worker *basicWorkerType) TaskCanceled() {
+func (worker *basicWorkerType) Terminate() {
 	if worker.taskCancelFunc != nil {
 		worker.taskCancelFunc()
 	}
@@ -182,7 +184,7 @@ func (node *slaveApplicationNodeType) RemoveWorker(w WorkerInterface) {
 	delete(node.workers, w.Id())
 	node.workerMux.Unlock()
 }
-
+/*
 func (node *slaveApplicationNodeType) CloseRegularWorker(
 	replySubject string,
 	message *CommandMessageType,
@@ -221,3 +223,4 @@ func (node *slaveApplicationNodeType) CloseRegularWorker(
 	node.RemoveWorker(worker)
 	return
 }
+*/

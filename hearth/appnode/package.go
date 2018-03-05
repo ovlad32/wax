@@ -42,7 +42,7 @@ type ApplicationNodeConfigType struct {
 }
 
 
-type commandProcessorFuncType func(
+type commandFuncType func(
 	subject string,
 	replySubject string,
 	incomingMessage *CommandMessageType,
@@ -50,7 +50,7 @@ type commandProcessorFuncType func(
 
 
 
-type commandProcessorsMapType map[CommandType]commandProcessorFuncType
+type commandFuncMapType map[CommandType]commandFuncType
 
 
 /*
@@ -86,7 +86,7 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 
 	instance := &applicationNodeType{
 		config: *cfg,
-		commandProcessorsMap:make(commandProcessorsMapType),
+		commandProcessorsMap:make(commandFuncMapType),
 	}
 	instance.logger = logger
 

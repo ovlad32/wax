@@ -18,6 +18,7 @@ import (
 type slaveApplicationNodeType struct {
 	*applicationNodeType
 	//
+	payLoadSizeMux  sync.RWMutex
 	payloadSizeAdjustments map[CommandType]int64
 	workerMux              sync.RWMutex
 	workers                map[WorkerIdType]WorkerInterface
@@ -75,21 +76,10 @@ func (node *slaveApplicationNodeType) registerMaxPayloadSize(maxLoadedMsg *Comma
 		return
 	}
 	adjustment = node.encodedConn.Conn.MaxPayload() - int64(len(encoded))
+	node.payLoadSizeMux.Lock()
 	node.payloadSizeAdjustments[maxLoadedMsg.Command] = adjustment
-	return
-}
+	node.payLoadSizeMux.Unlock()
 
-func (node *slaveApplicationNodeType) registerCommandProcessors() (err error){
-	//node.commandProcessorsMap[parishClose] = node.parishCloseFunc()
-	node.commandProcessorsMap[parishStopWorker] = node.parishStopWorkerFunc()
-
-	node.commandProcessorsMap[fileStats] = node.fileStatsProcessorFunc()
-
-	node.commandProcessorsMap[copyFileOpen] = node.copyFileOpenProcessorFunc()
-	node.commandProcessorsMap[copyFileLaunch] = node.copyFileLaunchProcessorFunc()
-
-	//node.commandProcessorsMap[categorySplitOpen] = node.categorySplitOpenFunc()
-	//node.commandProcessorsMap[categorySplitClose] = node.categorySplitCloseFunc()
 	return
 }
 

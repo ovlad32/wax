@@ -10,7 +10,7 @@ import (
 func AppNodeSeqId() (id int64, err error) {
 	err = iDb.QueryRow("select nextval('APP_NODE_SEQ')").Scan(&id)
 	if err != nil {
-		err = fmt.Errorf("could not get a sequential number from SPLIT_COLUMN_DATA_SEQ: %v", err)
+		err = fmt.Errorf("could not get a sequential number from APP_NODE_SEQ: %v", err)
 	}
 	return
 }

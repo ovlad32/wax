@@ -25,10 +25,10 @@ func (node *masterApplicationNodeType) makeCommandSubscription() (err error) {
 	return
 }
 
-func (node *masterApplicationNodeType) commandSubscriptionFunc() commandProcessorFuncType {
+func (node *masterApplicationNodeType) commandSubscriptionFunc() commandFuncType {
 	return func(subject,replySubject string, incomingMessage *CommandMessageType) (err error) {
 		node.logger.Infof("Master node command message: %v", incomingMessage.Command)
-		if processor, found := node.commandProcessorsMap[incomingMessage.Command];found {
+		if processor, found := node.commandFuncMap[incomingMessage.Command];found {
 			err = processor(subject,replySubject,incomingMessage)
 			if err != nil {
 				//TODO:

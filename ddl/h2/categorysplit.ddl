@@ -125,3 +125,28 @@ create table if not exists column_feature_stats(
 		, moving_stddev float
 		, constraint column_feature_stats_pk  primary key(column_info_id, key)
 );
+
+drop table if exists dist_task_node;
+drop table if exists dist_task;
+drop sequence if exists dist_task_seq;
+
+
+create sequence if not exists dist_task_seq;
+
+create table if not exists dist_task(
+id bigint,
+task varchar(100),
+constraint dist_task_pk primary key(id)
+);
+
+create table if not exists dist_task_node(
+ id bigint,
+ dist_task_id bigint,
+ node_id varchar(100),
+ role varchar (100),
+ worker_id varchar(100),
+ data_subject varchar(100),
+ constraint dist_task_node_pk primary key(id)
+);
+
+

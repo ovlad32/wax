@@ -81,19 +81,35 @@ func (node *slaveApplicationNodeType) commandSubscriptionFunc() func(string, str
 	var err error
 	return func(subject, replySubject string, msg *CommandMessageType) {
 		node.logger.Infof("Slave '%v' node command message: %v", node.NodeId(), msg.Command)
-		if processor, found := node.commandProcessorsMap[msg.Command]; found {
+		if processor, found := node.commandFuncMap[msg.Command]; found {
 			err = processor(subject,replySubject, msg)
 			if err != nil {
 				//TODO:
 			}
 		} else {
 			err = errors.Errorf("Slave '%v' cannot recognize incoming message command '%v'", node.NodeId(), msg.Command)
-			node.logger.Fatal()
+			node.logger.Fatal(err)
 		}
 	}
 }
 
 
+
+func (node *slaveApplicationNodeType) registerCommandProcessors() (err error){
+	//node.commandProcessorsMap[parishClose] = node.parishCloseFunc()
+	node.commandFuncMap[parishStopWorker] = node.parishStopWorkerFunc()
+
+	node.commandFuncMap[fileStats] = node.fileStatsCommandFunc()
+
+	node.commandFuncMap[copyFileOpen] = node.copyFileOpenCommandFunc()
+	node.commandFuncMap[copyFileCreate] = node.copyFileCreateCommandFunc()
+	node.commandFuncMap[copyFileLaunch] = node.copyFileLaunchCommandFunc()
+	node.commandFuncMap[copyFileTerminate] = node.copyFileTerminateCommandFunc()
+
+	//node.commandProcessorsMap[categorySplitOpen] = node.categorySplitOpenFunc()
+	//node.commandProcessorsMap[categorySplitClose] = node.categorySplitCloseFunc()
+	return
+}
 
 
 

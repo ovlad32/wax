@@ -77,7 +77,7 @@ func (node *masterApplicationNodeType) startServices() (err error) {
 
 
 func (node *masterApplicationNodeType) registerCommandProcessors() (err error) {
-	node.commandProcessorsMap[parishOpen] = node.parishOpenFunc()
+	node.commandFuncMap[parishOpen] = node.parishOpenFunc()
 	return
 }
 

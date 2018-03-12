@@ -7,27 +7,16 @@ import (
 	"github.com/pkg/errors"
 	"runtime"
 	"sync"
-	"strings"
-	"github.com/nats-io/nuid"
+	"github.com/ovlad32/wax/hearth/appnode/command"
+	"github.com/ovlad32/wax/hearth/appnode/worker"
 )
 
 var currentInstance *applicationNodeType
 var currentMaster *masterApplicationNodeType
-var currentSlave *slaveApplicationNodeType
+var currentSlave *SlaveNode
 
 var ciMux sync.Mutex
 
-type SubjectType string
-type CommandType string
-type CommandMessageParamType string
-
-type CommandMessageParamEntryType struct {
-	Key CommandMessageParamType
-	Value interface{}
-}
-type CommandMessageParamEntryArrayType []*CommandMessageParamEntryType
-
-const errorParam CommandMessageParamType = "error"
 
 
 
@@ -36,22 +25,22 @@ type ApplicationNodeConfigType struct {
 	AstraConfig    handling.AstraConfigType
 	NATSEndpoint   string
 	IsMaster       bool
-	NodeId         NodeIdType
+	NodeId         Id
 	RestAPIPort int
 	//MonitorPort int
 }
 
 
-type commandFuncType func(
-	subject string,
-	replySubject string,
-	incomingMessage *CommandMessageType,
-) (err error)
 
+type ParishRequestType struct {
+	SlaveNodeId Id
+	CommandSubject string
+}
 
-
-type commandFuncMapType map[CommandType]commandFuncType
-
+type ParishResponseType struct {
+	ReConnect bool
+	Err       error
+}
 
 /*
 var interceptors commandInterceptionInterface
@@ -60,7 +49,7 @@ var interceptors commandInterceptionInterface
 		if interceptors.request != nil {
 			err = interceptors.request(outgoingMessage)
 			if err != nil {
-				err = errors.Wrapf(err, "could not process request message '%v' via interception handler", command)
+				err = errors.Wrapf(err, "could not process request command '%v' via interception handler", command)
 				node.logger.Error(err)
 				return err
 			}
@@ -69,7 +58,7 @@ var interceptors commandInterceptionInterface
 if interceptorsFound && interceptors.response != nil {
 		err = interceptors.response(incomingMessage)
 		if err != nil {
-			err = errors.Wrapf(err, "could not process response message '%v' with interception of handler", command)
+			err = errors.Wrapf(err, "could not process response command '%v' with interception of handler", command)
 			node.logger.Error(err)
 			return err
 		}
@@ -86,14 +75,14 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 
 	instance := &applicationNodeType{
 		config: *cfg,
-		commandProcessorsMap:make(commandFuncMapType),
+		commandFuncMap:make(command.FuncMap),
 	}
 	instance.logger = logger
 
 	instance.ctx, instance.ctxCancelFunc = context.WithCancel(context.Background())
 
 	var master *masterApplicationNodeType
-	var slave *slaveApplicationNodeType
+	var slave *SlaveNode
 	//result.hostName, err = os.Hostname()
 	if err != nil {
 		err = fmt.Errorf("could not get local host name: %v", err)
@@ -104,16 +93,16 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 		master = &masterApplicationNodeType{
 			applicationNodeType: instance,
 		}
-		master.config.NodeId = MasterNodeId
+		master.config.NodeId = masterNodeId
 	} else {
 		if cfg.NodeId == "" {
 			logger.Fatal("Provide node id!")
 		}
-		slave = &slaveApplicationNodeType{
+		slave = &SlaveNode{
 			applicationNodeType: instance,
 		}
-		slave.payloadSizeAdjustments = make(map[CommandType]int64)
-		slave.workers = newWorkersMap()
+		slave.payloadSizeAdjustments = make(map[command.Command]int64)
+		slave.workers = worker.NewMap()
 	}
 
 	ciMux.Lock()
@@ -125,7 +114,7 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 		if cfg.IsMaster {
 			currentMaster = master
 			currentInstance = master.applicationNodeType
-			currentMaster.slaveCommandSubjects = make(map[NodeIdType]SubjectType)
+			currentMaster.slaveCommandSubjects = make(map[Id]Subject)
 			ciMux.Unlock()
 		} else {
 			currentSlave = slave
@@ -154,45 +143,5 @@ func NewApplicationNode(cfg *ApplicationNodeConfigType) (err error) {
 
 
 
-func (c CommandType) String() string {
-	return string(c)
-}
-func (c CommandType) IsEmpty() bool {
-	return c == ""
-}
 
 
-func (s SubjectType) String() string {
-	return string(s)
-}
-func (s SubjectType) IsEmpty() bool {
-	return s == ""
-}
-func newPrefixSubject(prefix string) SubjectType {
-	prefix = strings.TrimSpace(prefix)
-	if prefix != "" {
-		prefix = prefix+"/"
-	}
-	return SubjectType(fmt.Sprintf("%v%v",prefix,nuid.Next()))
-}
-
-
-
-func (s CommandMessageParamType) String() string {
-	return string(s)
-}
-func (s CommandMessageParamType) IsEmpty() bool {
-	return s == ""
-}
-
-func (c CommandMessageParamEntryArrayType) Append(paramType CommandMessageParamType, value interface{}) CommandMessageParamEntryArrayType{
-	c = append(c,&CommandMessageParamEntryType{
-		Key:paramType,
-		Value:value,
-	})
-	return c
-}
-
-func NewCommandMessageParams(n int) CommandMessageParamEntryArrayType{
-	return make(CommandMessageParamEntryArrayType,0,n)
-}

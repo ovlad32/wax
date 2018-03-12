@@ -1,10 +1,10 @@
 package repository
 
 import (
-	"fmt"
-	"github.com/ovlad32/wax/hearth/handling/nullable"
-	"github.com/ovlad32/wax/hearth/dto"
 	"context"
+	"fmt"
+	"github.com/ovlad32/wax/hearth/dto"
+	"github.com/ovlad32/wax/hearth/handling/nullable"
 	"github.com/pkg/errors"
 )
 
@@ -15,8 +15,6 @@ func distTaskSeqId() (id int64, err error) {
 	}
 	return
 }
-
-
 
 func PutDistTask(ctx context.Context, entity *dto.DistTaskType) (err error) {
 	var newOne bool
@@ -39,7 +37,7 @@ func PutDistTask(ctx context.Context, entity *dto.DistTaskType) (err error) {
 
 		_, err = ExecContext(ctx, dml, params...)
 		if err != nil {
-		    err= errors.Wrap(err,"could not add a new nodework row")
+			err = errors.Wrap(err, "could not add a new nodework row")
 			entity.Id = nullable.NullInt64{}
 			return
 		}
@@ -47,15 +45,12 @@ func PutDistTask(ctx context.Context, entity *dto.DistTaskType) (err error) {
 		dml := `update dist_task set status = ? where id = ?`
 		_, err = ExecContext(ctx, dml, entity.Status, entity.Id)
 		if err != nil {
-			err = errors.Wrapf(err,"could not update dist_task row where id=%v:",entity.Id)
+			err = errors.Wrapf(err, "could not update dist_task row where id=%v:", entity.Id)
 			return
 		}
 	}
 	return
 }
-
-
-
 
 func PutDistTaskNode(ctx context.Context, entity *dto.DistTaskNodeType) (err error) {
 	var newOne bool
@@ -81,7 +76,7 @@ func PutDistTaskNode(ctx context.Context, entity *dto.DistTaskNodeType) (err err
 
 		_, err = ExecContext(ctx, dml, params...)
 		if err != nil {
-			err= errors.Wrap(err,"could not add a new dist_task_node row")
+			err = errors.Wrap(err, "could not add a new dist_task_node row")
 			entity.Id = nullable.NullInt64{}
 			return
 		}
@@ -91,7 +86,7 @@ func PutDistTaskNode(ctx context.Context, entity *dto.DistTaskNodeType) (err err
 		dml := `update dist_task_node set ? where id = ?`
 		_, err = ExecContext(ctx, dml, entity.Id)
 		if err != nil {
-			err = errors.Wrapf(err,"could not update dist_task_node row where id=%v:",entity.Id)
+			err = errors.Wrapf(err, "could not update dist_task_node row where id=%v:", entity.Id)
 			return
 		}
 	}

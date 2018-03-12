@@ -8,20 +8,21 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"github.com/ovlad32/wax/hearth/appnode/parish"
 )
 
 const masterCommandSubject = "COMMAND.MASTER"
 
 
-type masterApplicationNodeType struct {
+type MasterNode struct {
 	*applicationNodeType
 	slaveCommandMux sync.RWMutex
-	slaveCommandSubjects map[NodeIdType]SubjectType
+	slaveCommandSubjects map[Id]Subject
 }
 
 
 
-func (node *masterApplicationNodeType) startServices() (err error) {
+func (node *MasterNode) startServices() (err error) {
 
 	_, err = repository.Init(hearth.AdaptRepositoryConfig(&node.config.AstraConfig))
 	if err != nil {
@@ -76,8 +77,8 @@ func (node *masterApplicationNodeType) startServices() (err error) {
 }
 
 
-func (node *masterApplicationNodeType) registerCommandProcessors() (err error) {
-	node.commandFuncMap[parishOpen] = node.parishOpenFunc()
+func (node *MasterNode) registerCommandProcessors() (err error) {
+	node.commandFuncMap[parish.Open] = node.parishOpenFunc()
 	return
 }
 

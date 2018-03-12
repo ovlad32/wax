@@ -11,21 +11,23 @@ import (
 	"time"
 	"encoding/json"
 	"context"
+	"github.com/ovlad32/wax/hearth/appnode/command"
+	"github.com/ovlad32/wax/hearth/appnode/worker"
 )
 
 
 
-type slaveApplicationNodeType struct {
+type SlaveNode struct {
 	*applicationNodeType
 	//
 	payLoadSizeMux  sync.RWMutex
-	payloadSizeAdjustments map[CommandType]int64
+	payloadSizeAdjustments map[command.Command]int64
 	workerMux              sync.RWMutex
-	workers                map[WorkerIdType]WorkerInterface
+	workers                map[worker.Id]worker.WorkerInterface
 }
 
 
-func (node *slaveApplicationNodeType) startServices() (err error) {
+func (node *SlaveNode) startServices() (err error) {
 
 	err = node.registerCommandProcessors()
 
@@ -62,17 +64,17 @@ func (node *slaveApplicationNodeType) startServices() (err error) {
 			err = errors.Wrapf(err, "could not close command subscriptions")
 			node.logger.Error(err)
 		}
-		node.logger.Warnf("Slave '%v' shut down", node.NodeId())
+		node.logger.Warnf("Slave '%v' shut down", node.Id())
 		os.Exit(0)
 	}()
 	return
 }
 
-func (node *slaveApplicationNodeType) registerMaxPayloadSize(maxLoadedMsg *CommandMessageType) (adjustment int64, err error) {
+func (node *SlaveNode) registerMaxPayloadSize(maxLoadedMsg *command.Message) (adjustment int64, err error) {
 	subject := "a subject length does not matter now, so make it arbitrary size but long enough"
 	encoded, err := node.encodedConn.Enc.Encode(subject, maxLoadedMsg)
 	if err != nil {
-		err = errors.Wrapf(err, "could not encode command message %v", maxLoadedMsg.Command)
+		err = errors.Wrapf(err, "could not encode command command %v", maxLoadedMsg.Command)
 		return
 	}
 	adjustment = node.encodedConn.Conn.MaxPayload() - int64(len(encoded))
@@ -83,12 +85,12 @@ func (node *slaveApplicationNodeType) registerMaxPayloadSize(maxLoadedMsg *Comma
 	return
 }
 
-func (node *slaveApplicationNodeType) workersHandlerFunc() func (http.ResponseWriter,*http.Request)  {
+func (node *SlaveNode) workersHandlerFunc() func (http.ResponseWriter,*http.Request)  {
 	return func (w http.ResponseWriter,r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		workerList := make([]map[string]interface{},0,len(node.workers))
-		for _,worker := range node.workers {
-			workerList = append(workerList, worker.JSONMap())
+		for _, instance := range node.workers {
+			workerList = append(workerList, instance.JSONMap())
 		}
 		je := json.NewEncoder(w)
 		err := je.Encode(workerList)
@@ -102,7 +104,7 @@ func (node *slaveApplicationNodeType) workersHandlerFunc() func (http.ResponseWr
 
 
 
-func (node *slaveApplicationNodeType) initRestApiRouting() (srv *http.Server, err error) {
+func (node *SlaveNode) initRestApiRouting() (srv *http.Server, err error) {
 
 	r := mux.NewRouter()
 
@@ -158,15 +160,15 @@ func (node slaveApplicationNodeType) reportError(
 
 	err = node.encodedConn.Publish(masterCommandSubject, errMsg)
 	if err != nil {
-		err = errors.Wrapf(err, "could not publish error message")
+		err = errors.Wrapf(err, "could not publish error command")
 		return
 	}
 	if err = node.encodedConn.Flush(); err != nil {
-		err = errors.Wrapf(err, "could not flush published error message")
+		err = errors.Wrapf(err, "could not flush published error command")
 		return
 	}
 	if err = node.encodedConn.LastError(); err != nil {
-		err = errors.Wrapf(err, "could not wire published error message")
+		err = errors.Wrapf(err, "could not wire published error command")
 		return
 	}
 	return

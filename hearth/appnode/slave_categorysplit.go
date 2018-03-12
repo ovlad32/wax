@@ -57,7 +57,7 @@ func (node *slaveApplicationNodeType) categorySplitCloseFunc() commandProcessorF
 func newCategorySplitWorker(
 	enc *nats.EncodedConn,
 	replySubject string,
-	message *CommandMessageType,
+	command *CommandMessageType,
 	logger *logrus.Logger,
 ) (result *categorySplitWorker, err error) {
 
@@ -68,8 +68,8 @@ func newCategorySplitWorker(
 		logger: logger,
 	}
 
-	tableInfoId := message.ParamInt64(tableInfoIdParam, -1)
-	splitId := message.ParamInt64(splitIdParam, -1)
+	tableInfoId := command.ParamInt64(tableInfoIdParam, -1)
+	splitId := command.ParamInt64(splitIdParam, -1)
 	if tableInfoId == -1 {
 		err = fmt.Errorf("%v == -1", tableInfoIdParam)
 		return
@@ -110,7 +110,7 @@ func newCategorySplitWorker(
 				},
 			})
 		if err != nil {
-			err = errors.Errorf("could not reply %v: %v ", message.Command, err)
+			err = errors.Errorf("could not reply %v: %v ", command.Command, err)
 			logger.Error(err)
 			return
 		}

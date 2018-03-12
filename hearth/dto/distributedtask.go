@@ -8,7 +8,6 @@ type DistTaskType struct {
 	Status string
 }
 
-
 type DistTaskNodeType struct {
 	Id          nullable.NullInt64
 	DistTaskId  nullable.NullInt64
@@ -17,4 +16,3 @@ type DistTaskNodeType struct {
 	WorkerId    string
 	DataSubject string
 }
-

@@ -1,10 +1,12 @@
-package appnode
+package copyfile
 
 import (
 	"bufio"
 	"context"
 	"github.com/nats-io/go-nats"
+	"github.com/ovlad32/wax/hearth/appnode"
 	"github.com/ovlad32/wax/hearth/dto"
+	proc "github.com/ovlad32/wax/hearth/process/copyfile"
 	"github.com/ovlad32/wax/hearth/repository"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -15,34 +17,32 @@ import (
 	"reflect"
 )
 
-type copyFileWorkerType struct {
-	basicWorkerType
-	file              io.ReadWriteCloser
-	pathToFile        string
+type WorkerType struct {
+	appnode.BasicWorkerType
 	distributedTaskId int64
 }
-type copyFileReader struct {
-	copyFileWorkerType
+
+type Reader struct {
+	//	copyfile.ReaderInterface
+	//	copyFile
 	fileSize int64
 }
-type copyFileWriter struct {
+type Writer struct {
 	bytesWritten   int
 	pathToTempFile string
 	copyFileWorkerType
 }
 
-const filePathParam CommandMessageParamType = "filePathParam"
-const fileSizeParam CommandMessageParamType = "fileSizeParam"
-const fileNotExistsParam CommandMessageParamType = "fileNotExistsParam"
-
-const fileStats CommandType = "FILE.STATS"
+const filePathParam appnode.CommandMessageParamType = "filePathParam"
+const fileSizeParam appnode.CommandMessageParamType = "fileSizeParam"
+const fileNotExistsParam appnode.CommandMessageParamType = "fileNotExistsParam"
 
 const copyFileOpen CommandType = "CMD.COPYFILE.OPEN"
 const copyFileCreate CommandType = "CMD.COPYFILE.CREATE"
 const copyFileData CommandType = "WRK.COPYFILE.DATA"
 const copyFileError CommandType = "CMD.COPYFILE.ERROR"
 const copyFileLaunch CommandType = "CMD.COPYFILE.LAUNCH"
-const copyFileTerminate  CommandType = "CMD.COPYFILE.TERMINATE"
+const copyFileTerminate CommandType = "CMD.COPYFILE.TERMINATE"
 
 const (
 	copyFileDataParam CommandMessageParamType = "data"
@@ -230,44 +230,6 @@ func (node masterApplicationNodeType) copyFile(
 	}()
 
 	return string(distTask.Id.Value()), nil
-}
-
-func (node slaveApplicationNodeType) fileStatsCommandFunc() commandFuncType {
-	return func(
-		subject,
-		replySubject string,
-		incomingMessage *CommandMessageType,
-	) (err error) {
-		replyParams := NewCommandMessageParams(3)
-		reply := func() (err error) {
-			err = node.PublishCommandResponse(
-				replySubject,
-				fileStats,
-				replyParams...,
-			)
-			if err != nil {
-				err = errors.Wrapf(err, "could not publish %v response", fileStats)
-				return
-			}
-			return
-		}
-
-		filePath := incomingMessage.ParamString(filePathParam, "")
-		stats, err := os.Stat(filePath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				replyParams = replyParams.Append(fileNotExistsParam, true)
-			} else {
-				err = errors.Wrapf(err, "could not get file statistics for %v", filePath)
-				node.logger.Error(err)
-				replyParams = replyParams.Append(errorParam, err)
-			}
-		} else {
-			replyParams = replyParams.Append(fileSizeParam, stats.Size())
-		}
-		err = reply()
-		return
-	}
 }
 
 func (node *slaveApplicationNodeType) copyFileCreateCommandFunc() commandFuncType {
@@ -500,14 +462,13 @@ func (node *slaveApplicationNodeType) copyFileLaunchCommandFunc() commandFuncTyp
 			return
 		}
 
-
 		if err = func() (err error) {
 			buf := bufio.NewReader(reader.file)
 			var readBuffer []byte
 			var dataSizeAdjusted = false
 			var maxPayloadSize = node.encodedConn.Conn.MaxPayload()
 
-			//* as long as message broker has litation on its payload size,
+			//* as long as command broker has litation on its payload size,
 			//*  assume that we don't need any size adjustment if our file is a half of MaxPayload
 			if dataSizeAdjusted = reader.fileSize < maxPayloadSize/2; dataSizeAdjusted {
 				node.logger.Warnf("readBuffer allocated to the size of the sourceFile %v", reader.fileSize)
@@ -517,7 +478,7 @@ func (node *slaveApplicationNodeType) copyFileLaunchCommandFunc() commandFuncTyp
 				node.payLoadSizeMux.RLock()
 				adjustment, dataSizeAdjusted = node.payloadSizeAdjustments[copyFileData]
 				node.payLoadSizeMux.RUnlock()
-				readBuffer = make([]byte, maxPayloadSize - adjustment)
+				readBuffer = make([]byte, maxPayloadSize-adjustment)
 			}
 
 			for {
@@ -527,56 +488,21 @@ func (node *slaveApplicationNodeType) copyFileLaunchCommandFunc() commandFuncTyp
 				case _ = <-reader.taskCancelContext.Done():
 					return
 				default:
-				readCount, err = buf.Read(readBuffer)
-				if err != nil {
-					if err != io.EOF {
-						err = errors.Wrapf(err, "could not read source file %v", reader.pathToFile)
-						node.logger.Error(err)
-						return
-					} else {
-						eof = true
-					}
-				}
-
-				replica := make([]byte, readCount)
-				copy(replica, readBuffer[:readCount])
-
-				message := &CommandMessageType{
-					Command: copyFileData,
-					Params: CommandMessageParamMap{
-						copyFileDataParam:      replica,
-						copyFileEOFParam:       eof,
-						workerIdParam:          reader.id,
-						distributedTaskIdParam: reader.distributedTaskId,
-					},
-				}
-				if !dataSizeAdjusted {
-					var adjustment int64
-					adjustment, err = node.registerMaxPayloadSize(message)
+					readCount, err = buf.Read(readBuffer)
 					if err != nil {
-						return
+						if err != io.EOF {
+							err = errors.Wrapf(err, "could not read source file %v", reader.pathToFile)
+							node.logger.Error(err)
+							return
+						} else {
+							eof = true
+						}
 					}
-					newSize := maxPayloadSize + adjustment
-					node.logger.Infof("copyFile message adjustment is %v", adjustment)
-					cutMessage := &CommandMessageType{
-						Command: copyFileData,
-						Params: CommandMessageParamMap{
-							copyFileDataParam:      replica[0:newSize],
-							copyFileEOFParam:       eof,
-							workerIdParam:          reader.id,
-							distributedTaskIdParam: reader.distributedTaskId,
-						},
-					}
-					if err = node.encodedConn.Publish(reader.counterpartSubject.String(), cutMessage); err != nil {
-						err = errors.Wrapf(err, "could not publish cut copyFile message")
-						node.logger.Info(err)
-						return
-					}
-					replica = replica[newSize:]
-					readBuffer = readBuffer[0:newSize]
-					node.logger.Warnf("readBuffer has been cut to %v bytes", newSize)
-					dataSizeAdjusted = true
-					message = &CommandMessageType{
+
+					replica := make([]byte, readCount)
+					copy(replica, readBuffer[:readCount])
+
+					message := &CommandMessageType{
 						Command: copyFileData,
 						Params: CommandMessageParamMap{
 							copyFileDataParam:      replica,
@@ -585,30 +511,65 @@ func (node *slaveApplicationNodeType) copyFileLaunchCommandFunc() commandFuncTyp
 							distributedTaskIdParam: reader.distributedTaskId,
 						},
 					}
-				}
+					if !dataSizeAdjusted {
+						var adjustment int64
+						adjustment, err = node.registerMaxPayloadSize(message)
+						if err != nil {
+							return
+						}
+						newSize := maxPayloadSize + adjustment
+						node.logger.Infof("copyFile command adjustment is %v", adjustment)
+						cutMessage := &CommandMessageType{
+							Command: copyFileData,
+							Params: CommandMessageParamMap{
+								copyFileDataParam:      replica[0:newSize],
+								copyFileEOFParam:       eof,
+								workerIdParam:          reader.id,
+								distributedTaskIdParam: reader.distributedTaskId,
+							},
+						}
+						if err = node.encodedConn.Publish(reader.counterpartSubject.String(), cutMessage); err != nil {
+							err = errors.Wrapf(err, "could not publish cut copyFile command")
+							node.logger.Info(err)
+							return
+						}
+						replica = replica[newSize:]
+						readBuffer = readBuffer[0:newSize]
+						node.logger.Warnf("readBuffer has been cut to %v bytes", newSize)
+						dataSizeAdjusted = true
+						message = &CommandMessageType{
+							Command: copyFileData,
+							Params: CommandMessageParamMap{
+								copyFileDataParam:      replica,
+								copyFileEOFParam:       eof,
+								workerIdParam:          reader.id,
+								distributedTaskIdParam: reader.distributedTaskId,
+							},
+						}
+					}
 
-				if err = node.encodedConn.Publish(reader.counterpartSubject.String(), message); err != nil {
-					err = errors.Wrapf(err, "could not publish copyFileData message")
-					node.logger.Error(err)
-					return
-				}
-
-				if eof {
-					if err = node.encodedConn.Flush(); err != nil {
-						err = errors.Wrapf(err, "could not flush copyFileData message")
+					if err = node.encodedConn.Publish(reader.counterpartSubject.String(), message); err != nil {
+						err = errors.Wrapf(err, "could not publish copyFileData command")
 						node.logger.Error(err)
 						return
 					}
 
-					if err = node.encodedConn.LastError(); err != nil {
-						err = errors.Wrapf(err, "error while wiring copyFileData message")
-						node.logger.Error(err)
-						return
+					if eof {
+						if err = node.encodedConn.Flush(); err != nil {
+							err = errors.Wrapf(err, "could not flush copyFileData command")
+							node.logger.Error(err)
+							return
+						}
+
+						if err = node.encodedConn.LastError(); err != nil {
+							err = errors.Wrapf(err, "error while wiring copyFileData command")
+							node.logger.Error(err)
+							return
+						}
+						break
 					}
-					break;
 				}
-			}
-			return
+				return
 			}
 		}(); err != nil {
 			errc := node.PublishCommand(
@@ -627,7 +588,6 @@ func (node *slaveApplicationNodeType) copyFileLaunchCommandFunc() commandFuncTyp
 		return
 	}
 }
-
 
 func (node *slaveApplicationNodeType) copyFileTerminateCommandFunc() commandFuncType {
 	return func(
@@ -672,7 +632,6 @@ func (worker *copyFileWriter) Terminate() {
 	worker.Unsubscribe()
 }
 
-
 func (worker *copyFileWriter) TaskDone() {
 	worker.node.RemoveWorker(worker)
 
@@ -686,7 +645,7 @@ func (worker *copyFileWorkerType) logger() *logrus.Logger {
 
 func (worker *copyFileWriter) subscriptionFunc() commandFuncType {
 	return func(subject, replySubject string, incomingMessage *CommandMessageType) (err error) {
-		worker.logger().Infof("Slave %v got command message: %v", worker.node.NodeId(), incomingMessage.Command)
+		worker.logger().Infof("Slave %v got command command: %v", worker.node.NodeId(), incomingMessage.Command)
 		switch incomingMessage.Command {
 		case copyFileData:
 			if err = func() (err error) {
@@ -815,6 +774,23 @@ func (worker copyFileWriter) JSONMap() map[string]interface{} {
 	return result
 }
 
-func (worker *copyFileReader) TaskDone() {
-	worker.node.RemoveWorker(worker)
+type copyWFiler interface {
+	Statistics(int64) error
+}
+
+type WaType struct {
+	slaveApplicationNodeType
+	basicWorkerType
+}
+
+func (w WaType) Statistics(param string) {
+
+	worker, err := w.FindWorker(id)
+	if err != nil {
+
+	}
+	r, ok := worker.(copyRFiler)
+	size, err := r.Statistics(param)
+
+	return
 }

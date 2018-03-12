@@ -3,10 +3,12 @@ package appnode
 import (
 	"fmt"
 	"github.com/pkg/errors"
+	"github.com/ovlad32/wax/hearth/appnode/command"
+	"github.com/ovlad32/wax/hearth/appnode/parish"
 )
 
 
-func (node *masterApplicationNodeType) makeCommandSubscription() (err error) {
+func (node *MasterNode) makeCommandSubscription() (err error) {
 	masterSubject := MasterCommandSubject()
 	node.logger.Infof("Create MASTER command subscription '%v'", masterSubject )
 
@@ -25,36 +27,36 @@ func (node *masterApplicationNodeType) makeCommandSubscription() (err error) {
 	return
 }
 
-func (node *masterApplicationNodeType) commandSubscriptionFunc() commandFuncType {
-	return func(subject,replySubject string, incomingMessage *CommandMessageType) (err error) {
-		node.logger.Infof("Master node command message: %v", incomingMessage.Command)
+func (node *MasterNode) commandSubscriptionFunc() command.Func {
+	return func(subject,replySubject string, incomingMessage *command.Message) (err error) {
+		node.logger.Infof("Master node command command: %v", incomingMessage.Command)
 		if processor, found := node.commandFuncMap[incomingMessage.Command];found {
 			err = processor(subject,replySubject,incomingMessage)
 			if err != nil {
 				//TODO:
 			}
 		} else {
-			panic(fmt.Sprintf("%v: cannot recognize incoming message command '%v' ",node.NodeId(),incomingMessage.Command))
+			panic(fmt.Sprintf("%v: cannot recognize incoming command command '%v' ",node.Id(),incomingMessage.Command))
 		}
 		return
 	}
 }
 
-func (node *masterApplicationNodeType) closeAllCommandSubscription() (err error) {
+func (node *MasterNode) closeAllCommandSubscription() (err error) {
 
 	node.slaveCommandMux.Lock()
 	defer node.slaveCommandMux.Unlock()
 	for _, subj:= range node.slaveCommandSubjects {
 		err = node.PublishCommand(
 			subj,
-			parishStopWorker,
+			parish.Open,
 		)
 		//if err != nil {
 		//	node.logger.Error(err)
 		//}
 
 	}
-	node.slaveCommandSubjects = make(map[NodeIdType]SubjectType)
+	node.slaveCommandSubjects = make(map[Id]Subject)
 	node.logger.Warnf("Slave command subscriptions have been closed")
 
 	err = node.commandSubscription.Unsubscribe()

@@ -94,10 +94,10 @@ func main() {
 		//-role master
 		err := appnode.NewApplicationNode(
 			&appnode.ApplicationNodeConfigType{
-				AstraConfig:    *config,
-				NATSEndpoint:   nats.DefaultURL,
-				IsMaster:       true,
-				RestAPIPort: 9200,
+				AstraConfig:  *config,
+				NATSEndpoint: nats.DefaultURL,
+				IsMaster:     true,
+				RestAPIPort:  9200,
 			},
 		)
 		if err != nil {
@@ -110,8 +110,8 @@ func main() {
 			&appnode.ApplicationNodeConfigType{
 				AstraConfig:  *config,
 				NATSEndpoint: nats.DefaultURL,
-				NodeId:    appnode.NodeIdType(*nodeIdDirectory),
-				RestAPIPort: int(*monitoringPort),
+				NodeId:       appnode.NodeIdType(*nodeIdDirectory),
+				RestAPIPort:  int(*monitoringPort),
 			},
 		)
 		if err != nil {

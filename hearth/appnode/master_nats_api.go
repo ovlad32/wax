@@ -4,7 +4,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (node *masterApplicationNodeType) initNATSService() (err error) {
+func (node *MasterNode) initNATSService() (err error) {
 
 	func() {
 		err = node.connectToNATS()

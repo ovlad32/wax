@@ -2,7 +2,7 @@ package appnode
 
 
 
-func (node *slaveApplicationNodeType) initNATSService() (err error) {
+func (node *SlaveNode) initNATSService() (err error) {
 
 	err = node.connectToNATS()
 	if err != nil {

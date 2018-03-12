@@ -1,73 +1,74 @@
-package appnode
+package worker
 
 import (
-	"github.com/nats-io/go-nats"
-	"github.com/pkg/errors"
 	"context"
 	"fmt"
+	"github.com/nats-io/go-nats"
 	"github.com/nats-io/nuid"
+	"github.com/ovlad32/wax/hearth/appnode/command"
+	"github.com/pkg/errors"
 	"reflect"
+	"github.com/ovlad32/wax/hearth/appnode"
 )
 
-const (
-	distributedTaskIdParam CommandMessageParamType = "distTaskId"
-	workerSubjectParam CommandMessageParamType = "workerSubject"
-	workerIdParam CommandMessageParamType = "workerId"
-)
+type Id string
 
-type WorkerIdType string
-
-func newWorkerId() WorkerIdType {
-	return WorkerIdType(fmt.Sprintf("worker/%v",nuid.Next()))
+func NewId() Id {
+	return Id(fmt.Sprintf("worker/%v", nuid.Next()))
 }
-func (c WorkerIdType) String() string {
+func (c Id) String() string {
 	return string(c)
 }
-func (c WorkerIdType) IsEmpty() bool {
+func (c Id) IsEmpty() bool {
 	return c == ""
 }
 
+type InvokeInterface interface {
+	Invoke() error
+	Terminate() error
+}
 
-type WorkerInterface interface {
-	Id() WorkerIdType
-	CounterpartSubject() (subject SubjectType)
+type WrapperInterface interface {
+	WorkerId() Id
+	CounterpartSubject() (subject appnode.Subject)
 	Unsubscribe() (err error)
-	Terminate()
 	JSONMap() map[string]interface{}
+}
+type WorkerInterface interface {
+	InvokeInterface
+	WrapperInterface
 }
 
 type WorkerHolderInterface interface {
 	AppendWorker(a WorkerInterface)
-	FindWorker(id WorkerIdType) WorkerInterface
+	FindWorker(id Id) WorkerInterface
 	RemoveWorker(w WorkerInterface)
 	CloseRegularWorker(w WorkerInterface)
 	Done(w WorkerInterface)
 	Error(w WorkerInterface, err error)
 }
 
-type basicWorkerType struct {
+type Basic struct {
 	//NATS section
-	id                 WorkerIdType
-	node               *slaveApplicationNodeType
+	id                 Id
+	node               *appnode.SlaveNode
 	subscription       *nats.Subscription
-	counterpartSubject SubjectType
+	counterpartSubject appnode.Subject
 	taskCancelContext  context.Context
 	taskCancelFunc     context.CancelFunc
 }
 
-
-func newWorkersMap() (map[WorkerIdType]WorkerInterface) {
-	return make(map[WorkerIdType]WorkerInterface)
+func NewMap() map[Id]WorkerInterface {
+	return make(map[Id]WorkerInterface)
 }
-
 
 func (worker *basicWorkerType) Unsubscribe() (err error) {
 	if worker.subscription != nil {
 		name := worker.subscription.Subject
 		err = worker.subscription.Unsubscribe()
 		if err != nil {
-			err = errors.Wrapf(err, "could not unsubscribe worker subject %v", name )
-			if worker.node!=nil && worker.node.logger != nil {
+			err = errors.Wrapf(err, "could not unsubscribe worker subject %v", name)
+			if worker.node != nil && worker.node.logger != nil {
 				worker.node.logger.Error(err)
 			}
 			return err
@@ -77,12 +78,11 @@ func (worker *basicWorkerType) Unsubscribe() (err error) {
 	return
 }
 
-
 func (worker *basicWorkerType) CounterpartSubject() (subject SubjectType) {
 	return worker.counterpartSubject
 }
 
-func (worker *basicWorkerType) Id() (WorkerIdType) {
+func (worker *basicWorkerType) Id() WorkerIdType {
 	return worker.id
 }
 
@@ -92,8 +92,8 @@ func (worker *basicWorkerType) Terminate() {
 	}
 }
 
-func(worker basicWorkerType ) JSONMap() map[string]interface{} {
-	result:= make(map[string]interface{})
+func (worker basicWorkerType) JSONMap() map[string]interface{} {
+	result := make(map[string]interface{})
 	t := reflect.TypeOf(worker)
 	result["worker"] = t.String()
 
@@ -105,9 +105,6 @@ func(worker basicWorkerType ) JSONMap() map[string]interface{} {
 	}
 	return result
 }
-
-
-
 
 /*
 func (worker basicWorker) reportError(command CommandType, incoming error) (err error) {
@@ -125,21 +122,21 @@ func (worker basicWorker) reportError(command CommandType, incoming error) (err 
 
 	err = worker.encodedConn.Publish(masterCommandSubject, errMsg)
 	if err != nil {
-		err = errors.Wrapf(err, "could not publish error message")
+		err = errors.Wrapf(err, "could not publish error command")
 		return
 	}
 	if err = worker.encodedConn.Flush(); err != nil {
-		err = errors.Wrapf(err, "could not flush published error message")
+		err = errors.Wrapf(err, "could not flush published error command")
 		return
 	}
 	if err = worker.encodedConn.LastError(); err != nil {
-		err = errors.Wrapf(err, "could not wire published error message")
+		err = errors.Wrapf(err, "could not wire published error command")
 		return
 	}
 	return
 }
 */
-func (node *slaveApplicationNodeType) AppendWorker(a WorkerInterface) {
+func (node *appnode.SlaveNode) AppendWorker(a WorkerInterface) {
 	if node.workers == nil {
 		node.workerMux.Lock()
 		if node.workers == nil {
@@ -154,9 +151,7 @@ func (node *slaveApplicationNodeType) AppendWorker(a WorkerInterface) {
 	}
 }
 
-
-
-func (node *slaveApplicationNodeType) FindWorker(id WorkerIdType) WorkerInterface {
+func (node *appnode.SlaveNode) FindWorker(id worker.Id) (result WorkerInterface, err error) {
 	if node.workers == nil {
 		return nil
 	}
@@ -171,26 +166,27 @@ func (node *slaveApplicationNodeType) FindWorker(id WorkerIdType) WorkerInterfac
 		}
 	}*/
 
-	worker, found := node.workers[id]
+	result, found := node.workers[id]
 	node.workerMux.RUnlock()
-	if found {
-		return worker
+	if !found {
+		err = errors.Errorf("could not find worker with WorkerId=%v", id)
 	}
-	return nil
+	return
 }
 
-func (node *slaveApplicationNodeType) RemoveWorker(w WorkerInterface) {
+func (node *appnode.SlaveNode) RemoveWorker(w WorkerInterface) {
 	node.workerMux.Lock()
 	delete(node.workers, w.Id())
 	node.workerMux.Unlock()
 }
+
 /*
 func (node *slaveApplicationNodeType) CloseRegularWorker(
 	replySubject string,
-	message *CommandMessageType,
+	command *CommandMessageType,
 	replyCommand CommandType) (err error) {
 
-	id := message.ParamWorkerId(workerIdParam)
+	id := command.ParamWorkerId(workerIdParam)
 	if id.IsEmpty() {
 		err = errors.Errorf("Parameter %v is empty", workerIdParam)
 		node.logger.Error(err)

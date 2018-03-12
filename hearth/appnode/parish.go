@@ -3,24 +3,14 @@ package appnode
 import (
 	"os"
 	"github.com/pkg/errors"
-)
-
-const (
-	slaveCommandSubjectParam CommandMessageParamType = "slaveCommandSubject"
-	slaveIdParam             CommandMessageParamType = "slaveId"
-	slaveResubscribedParam        CommandMessageParamType = "slaveResubscribed"
-
-	parishOpen   CommandType = "PARISH.OPEN"
-	//parishOpened CommandType = "PARISH.OPENED.S"
-	//parishClose  CommandType = "PARISH.CLOSE"
-	//parishClosed CommandType = "PARISH.CLOSED.S"
-	parishStopWorker CommandType = "PARISH.CANCEL.JOB"
+	"github.com/ovlad32/wax/hearth/appnode/command"
+	"github.com/ovlad32/wax/hearth/appnode/worker"
 )
 
 
 
-func (node masterApplicationNodeType) parishOpenFunc() commandFuncType {
-	return func(subject,replySubject string, msg *CommandMessageType) (err error) {
+func (node MasterNode) parishOpenFunc() command.Func {
+	return func(subject,replySubject string, msg *command.Message) (err error) {
 		slaveCommandSubject := msg.ParamSubject(slaveCommandSubjectParam)
 		if slaveCommandSubject.IsEmpty() {
 			node.logger.Warn("gotten slave command subject is empty!")
@@ -35,7 +25,7 @@ func (node masterApplicationNodeType) parishOpenFunc() commandFuncType {
 		node.logger.Infof("Start registering new Slave '%v' with command subject '%v'", slaveId, slaveCommandSubject)
 
 
-		params := NewCommandMessageParams(3)
+		params := command.NewParams(3)
 		node.slaveCommandMux.RLock()
 		if prev, found := node.slaveCommandSubjects[slaveId]; found {
 			node.slaveCommandMux.RUnlock()
@@ -66,13 +56,13 @@ func (node masterApplicationNodeType) parishOpenFunc() commandFuncType {
 
 
 
-func (node slaveApplicationNodeType) parishStopWorkerFunc() commandFuncType {
-	return func(subject,replySubject string, msg *CommandMessageType) (err error) {
-		node.logger.Warnf("Slave '%v': Shutdown signal received", node.NodeId())
+func (node SlaveNode) parishTerminateWorkerFunc() command.Func {
+	return func(subject,replySubject string, msg *command.Message) (err error) {
+		node.logger.Warnf("Slave '%v': Shutdown signal received", node.Id())
 
 		//of stopping worker on
 
-		workerId := msg.ParamWorkerId(workerIdParam);
+		workerId := msg.ParamWorkerId(worker.workerIdParam);
 		worker := node.FindWorker(workerId)
 		if worker != nil {
 			worker.Terminate();

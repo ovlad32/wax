@@ -9,7 +9,7 @@ import (
 )
 
 
-func (node *masterApplicationNodeType) BitsetBuildingHandlerFunc() func (http.ResponseWriter,*http.Request)  {
+func (node *MasterNode) BitsetBuildingHandlerFunc() func (http.ResponseWriter,*http.Request)  {
 	return func (w http.ResponseWriter,r *http.Request) {
 		vars := mux.Vars(r)
 		_ = vars
@@ -19,7 +19,7 @@ func (node *masterApplicationNodeType) BitsetBuildingHandlerFunc() func (http.Re
 
 }
 
-func (node *masterApplicationNodeType) CategorySplitHandlerFunc() func (http.ResponseWriter,*http.Request)  {
+func (node *MasterNode) CategorySplitHandlerFunc() func (http.ResponseWriter,*http.Request)  {
 	return func (w http.ResponseWriter,r *http.Request) {
 		vars := mux.Vars(r)
 		_ = vars
@@ -31,7 +31,7 @@ func (node *masterApplicationNodeType) CategorySplitHandlerFunc() func (http.Res
 
 
 
-func (node masterApplicationNodeType) copyFileHandlerFunc() func (http.ResponseWriter,*http.Request) {
+func (node MasterNode) copyFileHandlerFunc() func (http.ResponseWriter,*http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		_ = vars
@@ -76,7 +76,7 @@ func (node masterApplicationNodeType) copyFileHandlerFunc() func (http.ResponseW
 			return
 		}
 
-		subj,err := node.copyFile(sourceNodeId,sourceFile,targetNodeId,targetFile);
+		subj,err := node.copyfile1(sourceNodeId,sourceFile,targetNodeId,targetFile);
 		node.logger.Info(subj);
 		if err!= nil {
 			node.logger.Error(err);
@@ -94,7 +94,7 @@ func (node masterApplicationNodeType) copyFileHandlerFunc() func (http.ResponseW
 
 
 
-func (node masterApplicationNodeType) copyfile1(
+func (node MasterNode) copyfile1(
 	sourceNodeId,
 	sourceFile,
 	targetNode,
@@ -212,7 +212,7 @@ func (node masterApplicationNodeType) copyfile1(
 			replica := make([]byte, readBytes)
 			copy(replica, readBuffer[:readBytes])
 
-			message := &CommandMessageType{
+			command := &CommandMessageType{
 				Command: copyFileData,
 				Params: CommandMessageParamMap{
 					copyFileDataParam: replica,
@@ -221,7 +221,7 @@ func (node masterApplicationNodeType) copyfile1(
 			}
 			if !dataSizeAdjusted {
 				var adjustment int64
-				adjustment,err  = node.registerMaxPayloadSize(message)
+				adjustment,err  = node.registerMaxPayloadSize(command)
 				if err != nil {
 					//todo:
 				}
@@ -243,7 +243,7 @@ func (node masterApplicationNodeType) copyfile1(
 				node.logger.Warnf("readBuffer has been cut to %v bytes",newSize)
 
 				dataSizeAdjusted = true
-				message = &CommandMessageType{
+				command = &CommandMessageType{
 					Command: copyFileData,
 					Params: CommandMessageParamMap{
 						copyFileDataParam: replica,
@@ -252,8 +252,8 @@ func (node masterApplicationNodeType) copyfile1(
 				}
 			}
 
-			if err = node.encodedConn.Publish(subject, message); err != nil {
-				err = errors.Wrapf(err, "could not publish copyfile message")
+			if err = node.encodedConn.Publish(subject, command); err != nil {
+				err = errors.Wrapf(err, "could not publish copyfile command")
 				node.logger.Error(err)
 
 			}
@@ -261,13 +261,13 @@ func (node masterApplicationNodeType) copyfile1(
 
 
 			if err = node.encodedConn.Flush(); err != nil {
-				err = errors.Wrapf(err,"could not flush copyfile message")
+				err = errors.Wrapf(err,"could not flush copyfile command")
 				node.logger.Error(err)
 				return
 			}
 
 			if err = node.encodedConn.LastError(); err != nil {
-				err = errors.Wrapf(err,"error while wiring copyfile message")
+				err = errors.Wrapf(err,"error while wiring copyfile command")
 				node.logger.Error(err)
 				return
 			}
@@ -284,7 +284,7 @@ func (node masterApplicationNodeType) copyfile1(
 
 
 
-func (node *masterApplicationNodeType) initRestApiRouting() (srv *http.Server, err error){
+func (node *MasterNode) initRestApiRouting() (srv *http.Server, err error){
 	r := mux.NewRouter()
 	r.HandleFunc("/table/index",node.BitsetBuildingHandlerFunc()).Methods("POST")
 	r.HandleFunc("/table/categorysplit",node.CategorySplitHandlerFunc()).Methods("POST")

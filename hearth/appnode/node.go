@@ -7,9 +7,11 @@ import (
 	"github.com/nats-io/go-nats"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/ovlad32/wax/hearth/appnode/worker"
+	"github.com/ovlad32/wax/hearth/appnode/command"
 )
 
-type NodeIdType string
+
 
 type applicationNodeType struct {
 	config        ApplicationNodeConfigType
@@ -21,44 +23,25 @@ type applicationNodeType struct {
 	//
 	//
 	logger                 *logrus.Logger
-	commandFuncMap commandFuncMapType
+	commandFuncMap command.FuncMap
+	//natsFuncMap map[command.Command]func(nats.Msg
 }
-const (
-	MasterNodeId NodeIdType = "MASTER"
-)
 
-func MasterCommandSubject() SubjectType{
+
+func MasterCommandSubject() Subject{
 	return masterCommandSubject
 }
 
 
-func SlaveCommandSubject(id NodeIdType) SubjectType{
-	return SubjectType(fmt.Sprintf("COMMAND/%v", id))
+func SlaveCommandSubject(id Id) Subject{
+	return Subject(fmt.Sprintf("COMMAND/%v", id))
 }
 
 
-func (node *applicationNodeType) NodeId() NodeIdType {
+func (node *applicationNodeType) Id() Id {
 	return node.config.NodeId
 }
 
-
-func (s NodeIdType) String() string {
-	return string(s)
-}
-func (s NodeIdType) IsEmpty() bool {
-	return s == ""
-}
-
-func (s NodeIdType) CommandSubject() SubjectType {
-	if s.IsEmpty() {
-		panic("NodeId is empty!")
-	}
-	if s == MasterNodeId {
-		return MasterCommandSubject()
-	} else {
-		return SlaveCommandSubject(s)
-	}
-}
 
 func (node *applicationNodeType) connectToNATS() (err error) {
 	conn, err := nats.Connect(
@@ -71,9 +54,9 @@ func (node *applicationNodeType) connectToNATS() (err error) {
 		return
 	}
 
-	gob.Register(SubjectType(""))
-	gob.Register(NodeIdType(""))
-	gob.Register(WorkerIdType(""))
+	gob.Register(Subject(""))
+	gob.Register(Id(""))
+	gob.Register(worker.Id(("")))
 	gob.Register(errors.New(""))
 	gob.Register(fmt.Errorf(""))
 
@@ -101,15 +84,15 @@ func (node applicationNodeType) CallCommandByNodeId(
 }*/
 
 func (node applicationNodeType) RequestCommandBySubject(
-	subject SubjectType,
-	command CommandType,
-	entries ...*CommandMessageParamEntryType,
-) (response *CommandMessageType, err error) {
-	outgoingMessage := &CommandMessageType{
+	subject Subject,
+	command command.Command,
+	entries... *command.ParamEntry,
+) (response *command.Message, err error) {
+	outgoingMessage := &command.Message{
 		Command: command,
-		Params:  make(CommandMessageParamMap),
+		Params:  make(command.ParamMap),
 	}
-	incomingMessage := new(CommandMessageType)
+	incomingMessage := new(command.Message)
 
 	for _, e := range entries {
 		if !e.Key.IsEmpty() {
@@ -161,14 +144,15 @@ func (node applicationNodeType) RequestCommandBySubject(
 
 func (node applicationNodeType) PublishCommandResponse(
 	subject string,
-	command CommandType,
-	entries ...*CommandMessageParamEntryType,
+	command command.Command,
+	entries... *command.ParamEntry,
 ) (err error) {
 
-	response := &CommandMessageType{
+	response := &command.Message{
 		Command:command,
-		Params:make(CommandMessageParamMap),
+		Params:make(command.ParamMap),
 	}
+
 	for _, e := range entries {
 	//	fmt.Printf("Key:%v/Value:%v",e.Key,e.Value)
 		if !e.Key.IsEmpty() {
@@ -188,14 +172,14 @@ func (node applicationNodeType) PublishCommandResponse(
 }
 
 func (node applicationNodeType) PublishCommand(
-	subject SubjectType,
-	command CommandType,
-	entries ...*CommandMessageParamEntryType,
+	subject Subject,
+	command command.Command,
+	entries... *command.ParamEntry,
 ) (err error) {
 
-	response := &CommandMessageType{
+	response := &command.Message{
 		Command: command,
-		Params:make(CommandMessageParamMap),
+		Params:make(command.ParamMap),
 	}
 	for _, e := range entries {
 		if !e.Key.IsEmpty() {
@@ -226,8 +210,8 @@ func (node applicationNodeType) PublishCommand(
 
 
 func (node applicationNodeType) Subscribe(
-	subject SubjectType,
-	processor commandFuncType,
+	subject Subject,
+	processor command.Func,
 ) (result *nats.Subscription, err error) {
 
 	subscription, err := node.encodedConn.Subscribe(

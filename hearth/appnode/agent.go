@@ -1,32 +1,23 @@
 package appnode
 
-import (
-	"github.com/pkg/errors"
-	"os"
-	"os/signal"
-	"sync"
-	"net/http"
-	"github.com/gorilla/mux"
-	"fmt"
-	"time"
-	"encoding/json"
-	"context"
-	"github.com/ovlad32/wax/hearth/appnode/command"
-	"github.com/ovlad32/wax/hearth/appnode/worker"
+import "github.com/ovlad32/wax/hearth/appnode/message"
+
+const (
+	agentRegister            message.Command = "AGENT.REGISTER"
+	agentUnregister message.Command = "AGENT.UNREGISTER"
+	agentTerminate message.Command = "AGENT.TERMINATE"
 )
 
 
 
-type SlaveNode struct {
-	*applicationNodeType
-	//
-	payLoadSizeMux  sync.RWMutex
-	payloadSizeAdjustments map[command.Command]int64
-	workerMux              sync.RWMutex
-	workers                map[worker.Id]worker.WorkerInterface
+type AgentMessage struct {
+	CommandSubject string
+	NodeId string
+	RegisteredBefore bool
 }
 
 
+/*
 func (node *SlaveNode) startServices() (err error) {
 
 	err = node.registerCommandProcessors()
@@ -36,11 +27,12 @@ func (node *SlaveNode) startServices() (err error) {
 		return err
 	}
 
-	err = node.initNATSService()
-
-
+	err = node.ConnectToNATS(node.config.NATSEndpoint,node.config.NodeId)
 	if err != nil {
-		err = errors.Wrapf(err, "could not start NATS service")
+		return err
+	}
+	err = node.createCommandSubscription()
+	if err != nil {
 		return err
 	}
 
@@ -56,21 +48,24 @@ func (node *SlaveNode) startServices() (err error) {
 
 		if err = server.Shutdown(context.Background()); err != nil {
 			err = errors.Wrapf(err, "could not shutdown REST server")
-			node.logger.Error(err)
+			node.Logger().Error(err)
 		}
 
 		//err = node.closeAllCommandSubscription()
 		if err != nil {
 			err = errors.Wrapf(err, "could not close command subscriptions")
-			node.logger.Error(err)
+			node.Logger().Error(err)
 		}
-		node.logger.Warnf("Slave '%v' shut down", node.Id())
+
+		node.Logger().Warnf("Slave '%v' shut down", node.Id())
 		os.Exit(0)
 	}()
 	return
 }
+*/
+/*
 
-func (node *SlaveNode) registerMaxPayloadSize(maxLoadedMsg *command.Message) (adjustment int64, err error) {
+func (node *SlaveNode) registerMaxPayloadSize(maxLoadedMsg *message.Message) (adjustment int64, err error) {
 	subject := "a subject length does not matter now, so make it arbitrary size but long enough"
 	encoded, err := node.encodedConn.Enc.Encode(subject, maxLoadedMsg)
 	if err != nil {
@@ -83,34 +78,42 @@ func (node *SlaveNode) registerMaxPayloadSize(maxLoadedMsg *command.Message) (ad
 	node.payLoadSizeMux.Unlock()
 
 	return
-}
-
-func (node *SlaveNode) workersHandlerFunc() func (http.ResponseWriter,*http.Request)  {
-	return func (w http.ResponseWriter,r *http.Request) {
+}*/
+/*
+func (node *SlaveNode) workersHandlerFunc() func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		workerList := make([]map[string]interface{},0,len(node.workers))
-		for _, instance := range node.workers {
+		workerList := make([]map[string]interface{}, 0, len(node.Workers))
+		for _, instance := range node.Workers {
 			workerList = append(workerList, instance.JSONMap())
 		}
 		je := json.NewEncoder(w)
 		err := je.Encode(workerList)
-		if err!= nil {
-			http.Error(w,err.Error(),http.StatusOK)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusOK)
 			return
 		}
 		return
 	}
 }
 
+func (node *SlaveNode) Close(w task.Worker) (err error){
 
+	return
+}
+
+
+func (node *SlaveNode) Done(String,ierr error) {
+
+	return
+}*/
+
+/*
 
 func (node *SlaveNode) initRestApiRouting() (srv *http.Server, err error) {
 
 	r := mux.NewRouter()
 
-	r.HandleFunc("/workers/", node.workersHandlerFunc()).Methods("GET")
-	//r.HandleFunc("/table/categorysplit", node.CategorySplitHandlerFunc()).Methods("POST")
-	//r.HandleFunc("/util/copyfile", node.copyFileHandlerFunc()).Methods("POST")
 
 	//defer node.wg.Done()
 	address := fmt.Sprintf(":%d", node.config.RestAPIPort)
@@ -121,21 +124,21 @@ func (node *SlaveNode) initRestApiRouting() (srv *http.Server, err error) {
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
-	node.logger.Infof("REST API server has started at %v....", address)
+	node.Logger().Infof("REST API server has started at %v....", address)
 	go func() {
 		err := srv.ListenAndServe()
 		if err != nil {
 			if err == http.ErrServerClosed {
-				node.logger.Warn("REST API server closed")
+				node.Logger().Warn("REST API server closed")
 				return
 			}
 			err = errors.Wrapf(err, "REST API server broke at %v: %v", address)
-			node.logger.Fatal(err)
+			node.Logger().Fatal(err)
 		}
 	}()
 
 	return
-}
+}*/
 
 
 /*

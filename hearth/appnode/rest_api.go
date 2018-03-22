@@ -2,13 +2,22 @@ package appnode
 
 import (
 	"github.com/gorilla/mux"
-	"fmt"
-	"time"
 	"net/http"
-	"github.com/pkg/errors"
 )
 
+func (n *node) RestApiHandlers() http.Handler {
+	r := mux.NewRouter()
+	//r.HandleFunc("/table/index", node.BitsetBuildingHandlerFunc()).Methods("POST")
+	//r.HandleFunc("/table/categorysplit", node.CategorySplitHandlerFunc()).Methods("POST")
+	//r.HandleFunc("/util/copyfile", node.copyFileHandlerFunc()).Methods("POST")
 
+
+	//r.HandleFunc("/agents/", node.workersHandlerFunc()).Methods("GET")
+
+	return r
+}
+
+/*
 func (node *MasterNode) BitsetBuildingHandlerFunc() func (http.ResponseWriter,*http.Request)  {
 	return func (w http.ResponseWriter,r *http.Request) {
 		vars := mux.Vars(r)
@@ -43,7 +52,7 @@ func (node MasterNode) copyFileHandlerFunc() func (http.ResponseWriter,*http.Req
 
 		if !found || sourceFile == "" {
 			err := errors.New("sourceFile is empty")
-			node.logger.Error(err)
+			node.Logger().Error(err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -52,7 +61,7 @@ func (node MasterNode) copyFileHandlerFunc() func (http.ResponseWriter,*http.Req
 
 		if !found || sourceNodeId == "" {
 			err := errors.New("sourceNodeId is empty")
-			node.logger.Error(err)
+			node.Logger().Error(err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -61,7 +70,7 @@ func (node MasterNode) copyFileHandlerFunc() func (http.ResponseWriter,*http.Req
 
 		if !found || targetFile == "" {
 			err := errors.New("targetFile is empty")
-			node.logger.Error(err)
+			node.Logger().Error(err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -71,15 +80,15 @@ func (node MasterNode) copyFileHandlerFunc() func (http.ResponseWriter,*http.Req
 		targetNodeId:= r.FormValue("targetNodeId")
 		if !found || targetNodeId == "" {
 			err := errors.New("targetNodeId is empty")
-			node.logger.Error(err)
+			node.Logger().Error(err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		subj,err := node.copyfile1(sourceNodeId,sourceFile,targetNodeId,targetFile);
-		node.logger.Info(subj);
+		node.Logger().Info(subj)
 		if err!= nil {
-			node.logger.Error(err);
+			node.Logger().Error(err);
 		}
 		if err != nil {
 
@@ -93,14 +102,15 @@ func (node MasterNode) copyFileHandlerFunc() func (http.ResponseWriter,*http.Req
 }
 
 
-
+*/
+/*
 func (node MasterNode) copyfile1(
 	sourceNodeId,
 	sourceFile,
 	targetNode,
 	targetFile string,
 	) (subject string,err error)  {
-/*
+
 	//subs := node.commandSubject(targetNode)
 	entry,found :=  node.slaveCommandSubjects[targetNode]
 	if !found {
@@ -277,40 +287,9 @@ func (node MasterNode) copyfile1(
 			}
 
 		}
-	} ()*/
+	} ()
 	return
-}
+}*/
 
 
 
-
-func (node *MasterNode) initRestApiRouting() (srv *http.Server, err error){
-	r := mux.NewRouter()
-	r.HandleFunc("/table/index",node.BitsetBuildingHandlerFunc()).Methods("POST")
-	r.HandleFunc("/table/categorysplit",node.CategorySplitHandlerFunc()).Methods("POST")
-	r.HandleFunc("/util/copyfile",node.copyFileHandlerFunc()).Methods("POST")
-
-	//defer node.wg.Done()
-	address := fmt.Sprintf(":%d",node.config.RestAPIPort)
-	srv = &http.Server{
-		Handler: r,
-		Addr:    address,
-		// Good practice: enforce timeouts for servers you create!
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
-	}
-	node.logger.Infof("REST API server has started at %v....", address)
-	go func () {
-		err := srv.ListenAndServe()
-		if err != nil {
-			if err == http.ErrServerClosed {
-				node.logger.Warn("REST API server closed")
-				return
-			}
-			err = errors.Wrapf(err ,"REST API server broke at %v: %v", address)
-			node.logger.Fatal(err)
-		}
-	}()
-
-	return
-}

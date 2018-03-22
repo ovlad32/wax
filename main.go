@@ -90,33 +90,30 @@ func main() {
 		}
 
 		test1()
-	} else if *applicationRole == "master" {
-		//-role master
-		err := appnode.NewApplicationNode(
+	} else if *applicationRole == "dispatcher" {
+		//-role dispatcher
+		appnode.LaunchNode(
 			&appnode.ApplicationNodeConfigType{
 				AstraConfig:  *config,
 				NATSEndpoint: nats.DefaultURL,
-				IsMaster:     true,
+				IsDispatcher:     true,
 				RestAPIPort:  9200,
 			},
 		)
 		if err != nil {
 			stdlog.Fatal(err)
 		}
-	} else if *applicationRole == "slave" {
-		//-role slave -nodeIdDir=nodeId1 -mport 9202
+	} else if *applicationRole == "agent" {
+		//-role agent -nodeIdDir=nodeId1 -mport 9202
 
-		err := appnode.NewApplicationNode(
+		 appnode.LaunchNode(
 			&appnode.ApplicationNodeConfigType{
 				AstraConfig:  *config,
 				NATSEndpoint: nats.DefaultURL,
-				NodeId:       appnode.NodeIdType(*nodeIdDirectory),
+				NodeId:       *nodeIdDirectory,
 				RestAPIPort:  int(*monitoringPort),
 			},
 		)
-		if err != nil {
-			stdlog.Fatal(err)
-		}
 
 	} else {
 		stdlog.Fatalf("parameter role '%v' is not recognized", *applicationRole)

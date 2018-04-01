@@ -8,14 +8,31 @@ const (
 	agentTerminate message.Command = "AGENT.TERMINATE"
 )
 
-
-
-type AgentMessage struct {
+type MxAgent struct {
 	CommandSubject string
 	NodeId string
 	RegisteredBefore bool
 }
 
+const (
+	fileStats            message.Command = "FILE.STATS"
+	fileCopy            message.Command = "FILE.COPY"
+)
+
+type MxFileStats struct {
+	PathToFile string
+	FileExists bool
+	FileSize   int64
+}
+
+type MxFileCopy struct {
+	SrcPathToFile string
+	SrcNodeId     string
+	DstPathToFile string
+	DstNodeId     string
+	Stage string
+	DataSubject string
+}
 
 /*
 func (node *SlaveNode) startServices() (err error) {

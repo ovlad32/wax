@@ -183,7 +183,7 @@ func LaunchNode(cfg *ApplicationNodeConfigType) {
 				DispatcherCommandSubject(),
 				message.New(agentRegister).
 					PutRequest(
-						&AgentMessage{
+						&MxAgent{
 							CommandSubject: commandSubject,
 							NodeId:         instance.Id(),
 						},
@@ -197,7 +197,7 @@ func LaunchNode(cfg *ApplicationNodeConfigType) {
 				)
 				return
 			}
-			if response, ok := respMessage.Response.(*AgentMessage); !ok {
+			if response, ok := respMessage.Response.(*MxAgent); !ok {
 				err = errors.New("could not cast gotten response")
 				return
 			} else {

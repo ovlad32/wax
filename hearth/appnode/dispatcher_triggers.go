@@ -4,6 +4,7 @@ import (
 	"github.com/ovlad32/wax/hearth/appnode/message"
 	"github.com/ovlad32/wax/hearth/appnode/task"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 /*
@@ -36,9 +37,9 @@ func (node *MasterNode) closeAllCommandSubscription() (err error) {
 }
 */
 
-func onAgentRegister(n *node) (message.Trigger) {
+func onAgentRegister(n *node) message.Trigger {
 	return func(_, replySubject string, msg *message.Body) (err error) {
-		request, ok := msg.Request.(*AgentMessage)
+		request, ok := msg.Request.(*MxAgent)
 		if !ok {
 			err = errors.New("Request type has not been recognized")
 			n.Logger().Error(err)
@@ -62,14 +63,13 @@ func onAgentRegister(n *node) (message.Trigger) {
 			request.CommandSubject,
 		)
 
-
 		_, found := n.Tasks.Find(request.NodeId)
 		resp := message.New(msg.Command).
 			PutResponse(
-				&AgentMessage{
-					RegisteredBefore:found,
+				&MxAgent{
+					RegisteredBefore: found,
 				},
-		)
+			)
 
 		if found {
 			n.Logger().Infof(
@@ -82,25 +82,54 @@ func onAgentRegister(n *node) (message.Trigger) {
 		if err != nil {
 			err = errors.Wrapf(err,
 				"could not reply about new Agent '%v' registration",
-					request.NodeId,
-				)
+				request.NodeId,
+			)
 			n.Logger().Error(err)
 			return
 		}
+		agent := task.New(
+			"Agent",
+			&n.Communication,
+			task.LoggerOption(
+				func() *logrus.Logger {
+					return nil
+				},
+			)...,
+		)
 
-		parish := task.Task{
-			Communication: &n.Communication,
-			Id:            task.NewId(),
-			Name:          "Agent",
-		}
-
-		n.Tasks.Register(request.NodeId, parish)
+		n.Tasks.Register(request.NodeId, agent)
 
 		n.Logger().Infof(
 			"Agent '%v' with command subject '%v' has been successfully registered",
 			request.NodeId,
 			request.CommandSubject,
 		)
+		return
+	}
+}
+
+func onAgentUnregister(n *node) message.Trigger {
+	return func(_ string, replySubject string, incomingMessage *message.Body) (err error) {
+		request, ok := incomingMessage.Request.(*MxAgent)
+
+		if !ok {
+			err = errors.New("Request type has not been recognized")
+			n.Logger().Error(err)
+			return
+		}
+
+		if request.CommandSubject == "" {
+			err = errors.New("Agent command subject is empty")
+			n.Logger().Error(err)
+			return
+		}
+		if request.NodeId == "" {
+			err = errors.New("Agent Id is empty")
+			n.Logger().Error(err)
+			return
+		}
+		n.Tasks.Remove(request.NodeId)
+		n.Logger().Warnf("Agent '%v' has been unregistered", request.NodeId)
 		return
 	}
 }

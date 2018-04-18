@@ -26,6 +26,7 @@ type MxFileCopy struct {
 	DstNodeId     string
 	DataSubject   string
 }
+
 type MxFileCopyAgent struct {
 	Stage         string
 	params *MxFileCopy
@@ -34,8 +35,6 @@ type MxFileCopyAgent struct {
 	interruptingContext context.Context
 	eofContext context.Context
 	comm *natsu.Communication
-	logger *.
-
 }
 
 
@@ -46,11 +45,11 @@ func (agent *MxFileCopyAgent) readFile () (err error) {
 		return
 	}
 
+
 	reader := bufio.NewReader(agent.file)
 	buffer := make([]byte, agent.maxPayloadSize)
 
 	for {
-		var eof bool
 		select {
 		case _ = <-agent.interruptingContext.Done():
 			if agent.file != nil {
@@ -69,7 +68,6 @@ func (agent *MxFileCopyAgent) readFile () (err error) {
 						err = errors.Wrapf(err, "could not flush published file raw data")
 						return
 					}
-					eof = true
 				}
 				return nil
 			}

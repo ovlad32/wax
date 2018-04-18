@@ -22,6 +22,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"github.com/ovlad32/wax/glog"
 )
 
 var packageName = "main"
@@ -40,6 +41,8 @@ var nodeIdDirectory = flag.String("nodeIdDir", "nodeId", "")
 var monitoringPort = flag.Int64("mport", 0, "")
 
 func main() {
+	glog.MaxSize = 1024*1024*32
+	glog.Verbose()
 	flag.Parse()
 	tracelog.Start(tracelog.LevelInfo)
 	defer tracelog.Stop()

@@ -72,19 +72,8 @@ func (m Communication) Request(
 		return
 	}
 
-	err = m.Enc().Flush()
-	if err != nil {
-		err = errors.Wrapf(err,
-			"could not flush command request %v ",
-			request.Command)
-		return
-	}
-
-	if err = m.Enc().LastError(); err != nil {
-		err = errors.Wrapf(err,
-			"error in NATS while wiring command request %v ",
-			request.Command,
-		)
+	if err = m.Flush(); err != nil {
+		err = errors.Wrapf(err,"could not flush command request %v  ", request.Command)
 		return
 	}
 
@@ -143,19 +132,14 @@ func (m Communication) Publish(
 		return
 	}
 
-	err = m.Enc().Flush()
-	if err != nil {
-		err = errors.Wrapf(err, "could not flush published command %v ", msg.Command)
-		return
-	}
-
-	if err = m.Enc().LastError(); err != nil {
-		err = errors.Wrapf(err, "error in NATS while wiring published command %v ", msg.Command)
+	if err = m.Flush(); err != nil {
+		err = errors.Wrapf(err,"could not flush published command %v ", msg.Command)
 		return
 	}
 
 	return
 }
+
 
 func (m Communication) SubscribeMessageTrigger(
 	subject string,
@@ -185,16 +169,24 @@ func (m Communication) subscribeFunc(
 		err = errors.Wrapf(err, "could not create subscription for subject: %v ", subject)
 		return
 	}
+
+	if err = m.Flush(); err != nil {
+		err = errors.Wrapf(err,"could not flush created subscription for subject: %v", subject)
+		return
+	}
+	result = subscription
+	return
+}
+
+func (m Communication) Flush() (err error){
 	err = m.Enc().Flush()
 	if err != nil {
-		err = errors.Wrapf(err, "could not flush created subscription for subject: %v", subject)
 		return
 	}
 
 	if err = m.Enc().LastError(); err != nil {
-		err = errors.Wrapf(err, "error in NATS while wiring flushed subscription: %v", subject)
+		err = errors.Wrapf(err, "could not wire flush in NATS")
 		return
 	}
-	result = subscription
 	return
 }

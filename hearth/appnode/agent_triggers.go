@@ -5,6 +5,7 @@ import (
 	"github.com/pkg/errors"
 	"os"
 	"fmt"
+	"github.com/ovlad32/wax/hearth/di"
 )
 
 func onAgentTerminate(n *node) message.Trigger {
@@ -45,36 +46,37 @@ func onAgentTerminate(n *node) message.Trigger {
 	}
 }
 
-func onFileStats(n *node) message.Trigger {
+func onActionRun(n *node) message.Trigger {
 	return func(_ string, replySubject string, incomingMessage *message.Body) (err error) {
 		replyMessage := message.New(incomingMessage.Command)
 
-		mx, ok := incomingMessage.Request.(MxFileStats)
+		runnable, isAble := incomingMessage.Request.(di.Runner)
 		if err = func() (err error) {
-			if !ok {
+			if !isAble {
 				err = errors.New("could not recognize incoming request type")
 				return
 			}
-			if mx.PathToFile == "" {
-				err = errors.New("Path to requested file is empty")
-				return
+
+			if instance, isAble  := runnable.(di.NatsCommunicable); isAble {
+				instance.SetCommunication(&n.Communication)
+			}
+			if instance, isAble  := runnable.(di.NodeIdInjectable); isAble {
+				instance.SetNodeId(n.Id())
 			}
 
-			fileInfo, err := os.Stat(mx.PathToFile)
-			if err != nil {
-				err = errors.Wrapf(err, "could not find requested file %v", mx.PathToFile)
+			if err = runnable.Run(); err != nil {
 				return
 			}
-
-			mx.FileExists = !fileInfo.IsDir()
-			mx.FileSize = fileInfo.Size()
 			return
 		}(); err != nil {
 			n.Logger().Error(err)
 			replyMessage.Error = err
 		}
 
-		replyMessage.PutResponse(mx)
+		if runnable != nil {
+			replyMessage.PutResponse(runnable)
+		}
+
 		err = n.Reply(replySubject, replyMessage)
 		if err != nil {
 			err = errors.Wrapf(err, "could not send reply message for %v", incomingMessage.Command)

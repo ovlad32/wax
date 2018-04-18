@@ -14,25 +14,6 @@ type MxAgent struct {
 	RegisteredBefore bool
 }
 
-const (
-	fileStats            message.Command = "FILE.STATS"
-	fileCopy            message.Command = "FILE.COPY"
-)
-
-type MxFileStats struct {
-	PathToFile string
-	FileExists bool
-	FileSize   int64
-}
-
-type MxFileCopy struct {
-	SrcPathToFile string
-	SrcNodeId     string
-	DstPathToFile string
-	DstNodeId     string
-	Stage string
-	DataSubject string
-}
 
 /*
 func (node *SlaveNode) startServices() (err error) {
